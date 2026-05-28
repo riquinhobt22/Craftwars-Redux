@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.3.1 - OTIMIZADA)
+-- DELTA MOBILE HUB - VERSÃO 1.4 (SISTEMAS REFEITOS & MOBILE FIX)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -11,7 +11,7 @@ local Lighting = game:GetService("Lighting")
 if CoreGui:FindFirstChild("DeltaCustomHub_Premium") then CoreGui:FindFirstChild("DeltaCustomHub_Premium"):Destroy() end
 if Player:WaitForChild("PlayerGui"):FindFirstChild("DeltaCustomHub_Premium") then Player:WaitForChild("PlayerGui"):FindFirstChild("DeltaCustomHub_Premium"):Destroy() end
 
--- 1. Base da UI
+-- Base da UI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DeltaCustomHub_Premium"
 ScreenGui.ResetOnSpawn = false
@@ -19,7 +19,7 @@ ScreenGui.ResetOnSpawn = false
 local success, err = pcall(function() ScreenGui.Parent = CoreGui end)
 if not success then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
--- 2. Botão Flutuante (Abre/Fecha)
+-- Botão Flutuante
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Size = UDim2.new(0, 60, 0, 40)
@@ -32,7 +32,7 @@ ToggleBtn.TextSize = 14
 ToggleBtn.ZIndex = 10
 local BtnCorner = Instance.new("UICorner") ; BtnCorner.CornerRadius = UDim.new(0, 8) ; BtnCorner.Parent = ToggleBtn
 
--- Arrastar o Botão Flutuante (Mobile)
+-- Arrastar Botão Flutuante (Mobile)
 local dragBtnStart, startBtnPos, draggingBtn
 ToggleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -47,7 +47,7 @@ ToggleBtn.InputChanged:Connect(function(input)
 end)
 ToggleBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingBtn = false end end)
 
--- 3. Painel Principal
+-- Painel Principal
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
@@ -85,7 +85,7 @@ local TabListLayout = Instance.new("UIListLayout") ; TabListLayout.Parent = TabC
 
 local ContentContainer = Instance.new("Frame") ; ContentContainer.Parent = MainFrame ; ContentContainer.Position = UDim2.new(0, 120, 0, 42) ; ContentContainer.Size = UDim2.new(1, -128, 1, -50) ; ContentContainer.BackgroundTransparency = 1
 
--- 4. Tabela de Configurações Globais
+-- Tabelas de Controle Globais
 local Config = {
     FastMode = false, Shadows = true, CameraShake = true, Fullbright = false, PlayerESP = false,
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
@@ -93,17 +93,15 @@ local Config = {
     AutoEquip = false, SelectedWeapon = ""
 }
 
--- Variáveis de Controle dos Sistemas
 local flyBodyGyro, flyBodyVelocity
-local espConnections = {}
-local espRegistry = {} -- Correção do vazamento de memória e remoção do ESP
+local espFolder = Instance.new("Folder") ; espFolder.Name = "CustomESP_Storage" ; espFolder.Parent = CoreGui
 
--- 5. Motores de Elementos (Abas, Toggles, Caixas de Texto, Botões)
+-- Motores de UI
 local currentTabFrame = nil
 local function CreateTab(name)
     local TabBtn = Instance.new("TextButton") ; TabBtn.Parent = TabContainer ; TabBtn.Size = UDim2.new(1, 0, 0, 32) ; TabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36) ; TabBtn.Text = name ; TabBtn.Font = Enum.Font.SourceSansBold ; TabBtn.TextColor3 = Color3.fromRGB(180, 180, 180) ; TabBtn.TextSize = 13
     local TabBtnCorner = Instance.new("UICorner") ; TabBtnCorner.CornerRadius = UDim.new(0, 6) ; TabBtnCorner.Parent = TabBtn
-    local TabFrame = Instance.new("ScrollingFrame") ; TabFrame.Parent = ContentContainer ; TabFrame.Size = UDim2.new(1, 0, 1, 0) ; TabFrame.BackgroundTransparency = 1 ; TabFrame.Visible = false ; TabFrame.CanvasSize = UDim2.new(0, 0, 0, 650) ; TabFrame.ScrollBarThickness = 3 ; TabFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 140, 255)
+    local TabFrame = Instance.new("ScrollingFrame") ; TabFrame.Parent = ContentContainer ; TabFrame.Size = UDim2.new(1, 0, 1, 0) ; TabFrame.BackgroundTransparency = 1 ; TabFrame.Visible = false ; TabFrame.CanvasSize = UDim2.new(0, 0, 0, 750) ; TabFrame.ScrollBarThickness = 3 ; TabFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 140, 255)
     local ContentLayout = Instance.new("UIListLayout") ; ContentLayout.Parent = TabFrame ; ContentLayout.Padding = UDim.new(0, 6)
 
     TabBtn.MouseButton1Click:Connect(function()
@@ -144,7 +142,7 @@ local function AddButton(tab, text, callback)
 end
 
 -- ====================================================================
--- 6. CRIAÇÃO DA JANELA MISC E IMPLEMENTAÇÃO DAS FUNÇÕES
+-- JANELA MISC
 -- ====================================================================
 local TabMisc = CreateTab("Misc")
 
@@ -180,63 +178,63 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly (Ajuste de Velocidade e Controles)
+-- 4. Fly Mobile (Voo Direcional por Câmera)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
-    local num = math.clamp(tonumber(text) or 50, 0, 999)
-    Config.FlySpeed = num
+    Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
 
 local function StartFly()
     if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
     local root = Player.Character.HumanoidRootPart
+    local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
     
-    -- Limpeza preventiva de instâncias antigas de Fly
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
     flyBodyGyro = Instance.new("BodyGyro")
-    flyBodyGyro.P = 9e4 ; flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5) ; flyBodyGyro.cframe = root.CFrame ; flyBodyGyro.Parent = root
+    flyBodyGyro.P = 9e4
+    flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5)
+    flyBodyGyro.cframe = root.CFrame
+    flyBodyGyro.Parent = root
     
     flyBodyVelocity = Instance.new("BodyVelocity")
-    flyBodyVelocity.velocity = Vector3.new(0,0.1,0) ; flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5) ; flyBodyVelocity.Parent = root
+    flyBodyVelocity.velocity = Vector3.new(0,0,0)
+    flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5)
+    flyBodyVelocity.Parent = root
+    
     local Camera = workspace.CurrentCamera
     
     task.spawn(function()
-        while Config.Fly and root and root.Parent and Player.Character and Player.Character:FindFirstChild("Humanoid") do
+        while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
-            local dir = Vector3.new(0,0,0)
-            if Player.Character.Humanoid.MoveDirection.Magnitude > 0 then
-                dir = Player.Character.Humanoid.MoveDirection
+            if hum.MoveDirection.Magnitude > 0 then
+                -- Move na direção exata para onde a câmera aponta (Sobe/Desce/Lados)
+                flyBodyVelocity.velocity = Camera.CFrame.LookVector * (hum.MoveDirection.Magnitude * Config.FlySpeed)
+            else
+                flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
-            flyBodyVelocity.velocity = dir * Config.FlySpeed
             flyBodyGyro.cframe = Camera.CFrame
         end
-        -- Garante a destruição ao sair do loop
         if flyBodyGyro then flyBodyGyro:Destroy() end
         if flyBodyVelocity then flyBodyVelocity:Destroy() end
     end)
 end
 
-local function StopFly()
-    if flyBodyGyro then flyBodyGyro:Destroy() end
-    if flyBodyVelocity then flyBodyVelocity:Destroy() end
-end
-
-AddToggle(TabMisc, "Voar (Fly)", function(state)
+AddToggle(TabMisc, "Voar (Fly Mobile)", function(state)
     Config.Fly = state
-    if state then StartFly() else StopFly() end
+    if state then StartFly() else if flyBodyGyro then flyBodyGyro:Destroy() end if flyBodyVelocity then flyBodyVelocity:Destroy() end end
 end)
 
 AddToggle(TabMisc, "Manter Fly após morrer", function(state)
     Config.KeepFlyAfterDeath = state
 end)
 
--- 5. WalkSpeed (Ajuste e Fix)
+-- 5. WalkSpeed
 AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
-    local num = math.clamp(tonumber(text) or 16, 0, 999)
-    Config.WalkSpeedValue = num
+    Config.WalkSpeedValue = math.clamp(tonumber(text) or 16, 0, 999)
     if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        Player.Character.Humanoid.WalkSpeed = num
+        Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
     end
 end)
 
@@ -251,12 +249,9 @@ AddToggle(TabMisc, "Manter WalkSpeed após morrer", function(state)
     Config.KeepSpeedAfterDeath = state
 end)
 
--- Loop nativo para impedir redefinições do jogo na velocidade
 RunService.Heartbeat:Connect(function()
     if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        if Player.Character.Humanoid.WalkSpeed ~= Config.WalkSpeedValue then
-            Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
-        end
+        Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
     end
 end)
 
@@ -274,22 +269,47 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. AutoEquip Weapon (Lógica Dinâmica de Inventário)
-local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Selecionada: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansItalic ; WeaponLabel.TextColor3 = Color3.fromRGB(180, 180, 180) ; WeaponLabel.TextSize = 12
-AddTextBox(TabMisc, "Nome Exato da Arma para Equipar", function(text)
-    Config.SelectedWeapon = text
-    WeaponLabel.Text = "Arma Selecionada: " .. text
-end)
+-- 7. AutoEquip Weapon (Mecanismo de Lista Dinâmica)
+local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
+local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
+local ListScroll = Instance.new("ScrollingFrame") ; ListScroll.Parent = WeaponListFrame ; ListScroll.Size = UDim2.new(1, -4, 1, -4) ; ListScroll.Position = UDim2.new(0, 2, 0, 2) ; ListScroll.BackgroundTransparency = 1 ; ListScroll.CanvasSize = UDim2.new(0, 0, 0, 200) ; ListScroll.ScrollBarThickness = 2
+local ListLayout = Instance.new("UIListLayout") ; ListLayout.Parent = ListScroll ; ListLayout.Padding = UDim.new(0, 4)
 
-AddButton(TabMisc, "Atualizar/Checar Mochila (Refresh)", function()
-    local encontrou = false
+local function BuildWeaponMenu()
+    for _, child in pairs(ListScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    local foundAny = false
     for _, item in pairs(Player.Backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name:lower() == Config.SelectedWeapon:lower() then
-            encontrou = true
-            break
+        if item:IsA("Tool") then
+            foundAny = true
+            local WBtn = Instance.new("TextButton")
+            WBtn.Parent = ListScroll
+            WBtn.Size = UDim2.new(1, -4, 0, 25)
+            WBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+            WBtn.Text = item.Name
+            WBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            WBtn.Font = Enum.Font.SourceSansBold
+            WBtn.TextSize = 12
+            local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0, 4) ; c.Parent = WBtn
+            
+            WBtn.MouseButton1Click:Connect(function()
+                Config.SelectedWeapon = item.Name
+                WeaponLabel.Text = "Arma Ativa: " .. item.Name
+                for _, b in pairs(ListScroll:GetChildren()) do if b:IsA("TextButton") then b.BackgroundColor3 = Color3.fromRGB(30, 30, 40) end end
+                WBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+            end)
         end
     end
-    if encontrou then WeaponLabel.Text = "Arma Validada na Mochila: " .. Config.SelectedWeapon else WeaponLabel.Text = "Arma não encontrada! Use Refresh." end
+    if not foundAny then
+        WeaponLabel.Text = "Nenhuma arma na Mochila! Use Refresh."
+    end
+end
+
+AddButton(TabMisc, "🔄 Atualizar Lista de Armas", function()
+    BuildWeaponMenu()
 end)
 
 AddToggle(TabMisc, "AutoEquip Weapon", function(state)
@@ -298,10 +318,10 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.3)
         if Config.AutoEquip and Config.SelectedWeapon ~= "" and Player.Character and Player.Character:FindFirstChild("Humanoid") then
             local currentTool = Player.Character:FindFirstChildOfClass("Tool")
-            if not currentTool or currentTool.Name:lower() ~= Config.SelectedWeapon:lower() then
+            if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
                 local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
                 if tool and tool:IsA("Tool") then
                     Player.Character.Humanoid:EquipTool(tool)
@@ -311,58 +331,62 @@ task.spawn(function()
     end
 end)
 
--- 8. Player ESP (Visão Além das Paredes)
-local function CreateESP(p)
-    if p == Player then return end
+-- 8. Player ESP (Wallhack 3D real via CoreGui)
+local function RefreshESP()
+    espFolder:ClearAllChildren()
+    if not Config.PlayerESP then return end
     
-    local function apply(character)
-        if not character then return end
-        local root = character:WaitForChild("HumanoidRootPart", 5)
-        if root and not root:FindFirstChild("ESPHighlight") then
-            local highlight = Instance.new("Highlight")
-            highlight.Name = "ESPHighlight"
-            highlight.FillColor = Color3.fromRGB(255, 0, 50)
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.Parent = root
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            local root = p.Character.HumanoidRootPart
+            
+            -- Cria a caixa do Wallhack
+            local box = Instance.new("BoxHandleAdornment")
+            box.Name = p.Name .. "_ESPBox"
+            box.Size = Vector3.new(4, 6, 2)
+            box.Color3 = Color3.fromRGB(255, 0, 50)
+            box.AlwaysOnTop = true  -- Garante o efeito através das paredes (Wallhack)
+            box.ZIndex = 5
+            box.Transparency = 0.6
+            box.Adornee = root
+            box.Parent = espFolder
+            
+            -- Cria o texto do nome acima do player
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = p.Name .. "_ESPText"
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.AlwaysOnTop = true
+            billboard.Adornee = root
+            billboard.ExtentsOffset = Vector3.new(0, 4, 0)
+            billboard.Parent = espFolder
+            
+            local label = Instance.new("TextLabel")
+            label.Parent = billboard
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Text = p.Name
+            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+            label.TextStrokeTransparency = 0
+            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            label.Font = Enum.Font.SourceSansBold
+            label.TextSize = 14
         end
     end
-    
-    -- Registra o evento CharacterAdded do jogador específico para gerenciar pós-morte
-    local conn = p.CharacterAdded:Connect(function(char)
-        if Config.PlayerESP then
-            apply(char)
-        end
-    end)
-    table.insert(espRegistry, conn)
-    
-    if p.Character then apply(p.Character) end
 end
 
-AddToggle(TabMisc, "Player ESP", function(state)
+AddToggle(TabMisc, "Player ESP (Wallhack)", function(state)
     Config.PlayerESP = state
-    if state then
-        for _, p in pairs(game.Players:GetPlayers()) do CreateESP(p) end
-        espConnections[#espConnections+1] = game.Players.PlayerAdded:Connect(CreateESP)
-    else
-        -- Limpa conexões principais do PlayerAdded
-        for _, conn in pairs(espConnections) do conn:Disconnect() end
-        espConnections = {}
-        
-        -- Limpa conexões internas do CharacterAdded de cada player (Evita memory leak)
-        for _, conn in pairs(espRegistry) do conn:Disconnect() end
-        espRegistry = {}
-        
-        -- Remove os efeitos visuais
-        for _, p in pairs(game.Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart:FindFirstChild("ESPHighlight") then
-                p.Character.HumanoidRootPart.ESPHighlight:Destroy()
-            end
-        end
+    if not state then espFolder:ClearAllChildren() end
+end)
+
+-- Loop de renderização do ESP para suavidade extrema e atualização pós-morte
+RunService.Heartbeat:Connect(function()
+    if Config.PlayerESP then
+        RefreshESP()
     end
 end)
 
--- 9. Loop de Persistência Pós-Morte (WalkSpeed e Fly)
+-- 9. Loop de Persistência Pós-Morte Geral
 Player.CharacterAdded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
@@ -374,3 +398,7 @@ Player.CharacterAdded:Connect(function(char)
         StartFly()
     end
 end)
+
+-- Inicializa a listagem de armas no carregamento primário do script
+task.defer(BuildWeaponMenu)
+
