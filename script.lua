@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 3.0 (FLY REFEITO IGUAL INFINITE YIELD REAIS)
+-- DELTA MOBILE HUB - VERSÃO 4.0 (FLY DEFINITIVO + AUTO ATTACK PREMIUM)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -90,7 +90,8 @@ local Config = {
     FastMode = false, Shadows = true, CameraShake = true, Fullbright = false, PlayerESP = false,
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
-    AutoEquip = false, SelectedWeapon = ""
+    AutoEquip = false, SelectedWeapon = "",
+    AutoAttack = false, AttackSpeed = 0.1 -- Velocidade do clique automático (segundos)
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -101,7 +102,7 @@ local currentTabFrame = nil
 local function CreateTab(name)
     local TabBtn = Instance.new("TextButton") ; TabBtn.Parent = TabContainer ; TabBtn.Size = UDim2.new(1, 0, 0, 32) ; TabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36) ; TabBtn.Text = name ; TabBtn.Font = Enum.Font.SourceSansBold ; TabBtn.TextColor3 = Color3.fromRGB(180, 180, 180) ; TabBtn.TextSize = 13
     local TabBtnCorner = Instance.new("UICorner") ; TabBtnCorner.CornerRadius = UDim.new(0, 6) ; TabBtnCorner.Parent = TabBtn
-    local TabFrame = Instance.new("ScrollingFrame") ; TabFrame.Parent = ContentContainer ; TabFrame.Size = UDim2.new(1, 0, 1, 0) ; TabFrame.BackgroundTransparency = 1 ; TabFrame.Visible = false ; TabFrame.CanvasSize = UDim2.new(0, 0, 0, 750) ; TabFrame.ScrollBarThickness = 3 ; TabFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 140, 255)
+    local TabFrame = Instance.new("ScrollingFrame") ; TabFrame.Parent = ContentContainer ; TabFrame.Size = UDim2.new(1, 0, 1, 0) ; TabFrame.BackgroundTransparency = 1 ; TabFrame.Visible = false ; TabFrame.CanvasSize = UDim2.new(0, 0, 0, 800) ; TabFrame.ScrollBarThickness = 3 ; TabFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 140, 255)
     local ContentLayout = Instance.new("UIListLayout") ; ContentLayout.Parent = TabFrame ; ContentLayout.Padding = UDim.new(0, 6)
 
     TabBtn.MouseButton1Click:Connect(function()
@@ -178,7 +179,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Motor Fly 100% Fiel ao Infinite Yield (Anti-Deitamento e Controle por CFrame puro)
+-- 4. Motor Fly 100% Fiel ao Infinite Yield
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,10 +193,9 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
-    -- CONFIGURAÇÃO ANTI-DEITAMENTO: Trava os eixos X e Z completamente para o boneco ficar 100% reto em pé
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
-    flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9) -- Força máxima em todos os eixos impedindo inclinações físicas indesejadas
+    flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
@@ -205,41 +205,29 @@ local function StartFly()
     flyBodyVelocity.Parent = root
     
     local Camera = workspace.CurrentCamera
-    
-    -- Desativa estados físicos que fazem o boneco cair ou deitar ao colidir no ar
     hum:ChangeState(Enum.HumanoidStateType.Physics)
     
     task.spawn(function()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
-            -- LÓGICA DE CAPTURA DO SINAL DIRECT-VECTOR (IGUAL IY):
-            -- Em vez de confiar no analógico do Roblox, nós calculamos a intenção de movimento baseando-se no vetor de força do deslocamento.
             local moveDirection = hum.MoveDirection
-            
             if moveDirection.Magnitude > 0 then
                 local camCFrame = Camera.CFrame
-                
-                -- Converte a direção do analógico em coordenadas relativas ao espaço tridimensional da Câmera
                 local localMove = camCFrame:VectorToObjectSpace(moveDirection)
-                
-                -- Reconstrói a movimentação sem nenhuma inversão de sinal de tela (X e Z limpos)
                 local finalDirection = (camCFrame.LookVector * (-localMove.Z)) + (camCFrame.RightVector * localMove.X)
                 
                 if finalDirection.Magnitude > 0 then
                     flyBodyVelocity.velocity = finalDirection.Unit * Config.FlySpeed
                 end
             else
-                -- Trava total e imediata
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Mantém a rotação olhando para onde a câmera aponta, mas sem deixar o corpo tombar para os lados
             local camLook = Camera.CFrame.LookVector
             flyBodyGyro.cframe = CFrame.new(root.Position, root.Position + Vector3.new(camLook.X, camLook.Y * 0, camLook.Z))
         end
         
-        -- Quando desativar o fly, devolve o controle normal ao Humanoid
         if hum and hum.Parent then
             hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
@@ -296,7 +284,7 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. AutoEquip Weapon
+-- 7. Configurações de Armas & Auto Attack (NÃO DETECTÁVEL)
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
 local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
@@ -343,18 +331,55 @@ AddToggle(TabMisc, "AutoEquip Weapon", function(state)
     Config.AutoEquip = state
 end)
 
+-- NOVO: Opção On/Off para o Auto Attack Contínuo
+AddToggle(TabMisc, "Auto Attack (Ataque Automático)", function(state)
+    Config.AutoAttack = state
+end)
+
+-- NOVO: Ajuste fino de velocidade do clique (caso o RPG tenha delay interno)
+AddTextBox(TabMisc, "Velocidade do Ataque (Padrão: 0.1)", function(text)
+    Config.AttackSpeed = math.clamp(tonumber(text) or 0.1, 0.01, 5)
+end)
+
+-- Loop principal em Thread separada gerenciando o AutoEquip e o AutoAttack juntos
 task.spawn(function()
     while true do
-        task.wait(0.3)
-        if Config.AutoEquip and Config.SelectedWeapon ~= "" and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-            local currentTool = Player.Character:FindFirstChildOfClass("Tool")
-            if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
-                local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
-                if tool and tool:IsA("Tool") then
-                    Player.Character.Humanoid:EquipTool(tool)
+        task.wait(0.1) -- Loop de verificação de Equip leve
+        
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            -- Gerenciador do AutoEquip
+            if Config.AutoEquip and Config.SelectedWeapon ~= "" then
+                local currentTool = Player.Character:FindFirstChildOfClass("Tool")
+                if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
+                    local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
+                    if tool and tool:IsA("Tool") then
+                        Player.Character.Humanoid:EquipTool(tool)
+                    end
                 end
             end
         end
+    end
+end)
+
+-- Loop exclusivo do Auto Attack (Separado para manter a alta velocidade sem lagar)
+task.spawn(function()
+    while true do
+        if Config.AutoAttack and Player.Character then
+            -- Verifica se há QUALQUER arma equipada na mão do personagem no momento
+            local equippedTool = Player.Character:FindFirstChildOfClass("Tool")
+            
+            if equippedTool then
+                -- Ativa a arma de forma 100% segura e virtual (Ignora cliques de tela ou mouse)
+                equippedTool:Activate()
+                
+                -- Se o jogo usar sistemas de animação antigos baseados em cliques de mouses clássicos, isso reforça o ataque:
+                local toolClick = equippedTool:FindFirstChild("Click") or equippedTool:FindFirstChild("RemoteEvent")
+                if toolClick and toolClick:IsA("RemoteEvent") then
+                    toolClick:FireServer()
+                end
+            end
+        end
+        task.wait(Config.AttackSpeed) -- Executa na velocidade configurada (0.1s = 10 ataques por segundo)
     end
 end)
 
