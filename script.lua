@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 2.0 (FLY SHIFTLOCK - EIXO X CORRIGIDO)
+-- DELTA MOBILE HUB - VERSÃO 3.0 (FLY REFEITO IGUAL INFINITE YIELD REAIS)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile Anti-ShiftLock (Eixo X Corrigido)
+-- 4. Motor Fly 100% Fiel ao Infinite Yield (Anti-Deitamento e Controle por CFrame puro)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,45 +192,56 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
+    -- CONFIGURAÇÃO ANTI-DEITAMENTO: Trava os eixos X e Z completamente para o boneco ficar 100% reto em pé
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
-    flyBodyGyro.maxTorque = Vector3.new(0, 9e5, 0) -- Permite o ShiftLock rotacionar o personagem livremente no eixo Y
+    flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9) -- Força máxima em todos os eixos impedindo inclinações físicas indesejadas
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
     flyBodyVelocity = Instance.new("BodyVelocity")
     flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
-    flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5)
+    flyBodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
     flyBodyVelocity.Parent = root
     
     local Camera = workspace.CurrentCamera
+    
+    -- Desativa estados físicos que fazem o boneco cair ou deitar ao colidir no ar
+    hum:ChangeState(Enum.HumanoidStateType.Physics)
     
     task.spawn(function()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
-            if hum.MoveDirection.Magnitude > 0 then
+            -- LÓGICA DE CAPTURA DO SINAL DIRECT-VECTOR (IGUAL IY):
+            -- Em vez de confiar no analógico do Roblox, nós calculamos a intenção de movimento baseando-se no vetor de força do deslocamento.
+            local moveDirection = hum.MoveDirection
+            
+            if moveDirection.Magnitude > 0 then
                 local camCFrame = Camera.CFrame
-                local moveDir = hum.MoveDirection
                 
-                -- Vetor Frente/Trás absoluto
-                local forward = camCFrame.LookVector * (-moveDir.Z)
+                -- Converte a direção do analógico em coordenadas relativas ao espaço tridimensional da Câmera
+                local localMove = camCFrame:VectorToObjectSpace(moveDirection)
                 
-                -- CORREÇÃO DEFINITIVA DO EIXO LATERAL (X):
-                -- Invertemos o sinal multiplicador de (-moveDir.X) para (moveDir.X)
-                -- Isso alinha perfeitamente o Dynamic Thumbstick com a Câmera e o ShiftLock
-                local side = camCFrame.RightVector * moveDir.X
+                -- Reconstrói a movimentação sem nenhuma inversão de sinal de tela (X e Z limpos)
+                local finalDirection = (camCFrame.LookVector * (-localMove.Z)) + (camCFrame.RightVector * localMove.X)
                 
-                local rawDirection = forward + side
-                if rawDirection.Magnitude > 0 then
-                    flyBodyVelocity.velocity = rawDirection.Unit * Config.FlySpeed
+                if finalDirection.Magnitude > 0 then
+                    flyBodyVelocity.velocity = finalDirection.Unit * Config.FlySpeed
                 end
             else
+                -- Trava total e imediata
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Sincroniza a rotação do giroscópio de forma estável
-            flyBodyGyro.cframe = CFrame.new(root.Position, root.Position + Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z))
+            -- Mantém a rotação olhando para onde a câmera aponta, mas sem deixar o corpo tombar para os lados
+            local camLook = Camera.CFrame.LookVector
+            flyBodyGyro.cframe = CFrame.new(root.Position, root.Position + Vector3.new(camLook.X, camLook.Y * 0, camLook.Z))
+        end
+        
+        -- Quando desativar o fly, devolve o controle normal ao Humanoid
+        if hum and hum.Parent then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
         if flyBodyGyro then flyBodyGyro:Destroy() end
         if flyBodyVelocity then flyBodyVelocity:Destroy() end
