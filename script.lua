@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE CUSTOM HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.0)
+-- DELTA MOBILE CUSTOM HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.1 - FIX)
 -- ====================================================================
 
 local Player = game.Players.LocalPlayer
@@ -8,12 +8,20 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 
+-- Evita que o script duplique na tela se você executar mais de uma vez
+if CoreGui:FindFirstChild("DeltaCustomHub_Premium") then
+    CoreGui:FindFirstChild("DeltaCustomHub_Premium"):Destroy()
+end
+if Player:WaitForChild("PlayerGui"):FindFirstChild("DeltaCustomHub_Premium") then
+    Player:WaitForChild("PlayerGui"):FindFirstChild("DeltaCustomHub_Premium"):Destroy()
+end
+
 -- 1. Criar a Base da UI (Protegida contra reset e deletes comuns)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DeltaCustomHub_Premium"
 ScreenGui.ResetOnSpawn = false
 
--- Tenta injetar no CoreGui (padrão de exploit), se não der, joga no PlayerGui
+-- Injeta no CoreGui ou PlayerGui de forma segura
 local success, err = pcall(function()
     ScreenGui.Parent = CoreGui
 end)
@@ -221,7 +229,7 @@ local function AddToggle(tab, text, callback)
         state = not state
         Toggle.Text = state and "  " .. text .. " [ON]" or "  " .. text .. " [OFF]"
         Toggle.TextColor3 = state and Color3.fromRGB(75, 230, 130) or Color3.fromRGB(230, 75, 75)
-        callback(state)
+        pcall(callback, state)
     end)
 end
 
@@ -242,7 +250,7 @@ local function AddTextBox(tab, placeholder, callback)
     BoxCorner.Parent = Box
 
     Box.FocusLost:Connect(function(enterPressed)
-        callback(Box.Text)
+        pcall(callback, Box.Text)
     end)
 end
 
@@ -261,23 +269,10 @@ local function AddButton(tab, text, callback)
     BtnCorner.Parent = Btn
 
     Btn.MouseButton1Click:Connect(function()
-        callback()
+        pcall(callback)
     end)
 end
 
 -- ====================================================================
 -- 7. INSTANCIANDO AS ABAS E LOGICAS DE FUNÇÕES
--- ====================================================================
-
-local TabConf = CreateTab("Conf")
-local TabMov = CreateTab("Movimento")
-local TabMisc = CreateTab("Misc")
-local TabTools = CreateTab("Tools")
-
--- 🔹 ABA: CONF
-AddButton(TabConf, "Destruir Interface (Unload)", function()
-    ScreenGui:Destroy()
-end)
-
-AddButton(TabConf, "Reajustar Posição do Menu", function()
 
