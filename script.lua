@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.5 (FLY TOTALMENTE DIRECIONAL MOBILE)
+-- DELTA MOBILE HUB - VERSÃO 1.6 (FLY OMNIDIRECIONAL CORRIGIDO)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile Omnidirecional (Livre via Joystick + Câmera)
+-- 4. Fly Mobile Dinâmico (Joystick Livre + Rotação 3D de Câmeras)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,12 +192,14 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
+    -- Trava a rotação do corpo de acordo com a visão da câmera
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
     flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5)
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
+    -- Controla o vetor de velocidade linear
     flyBodyVelocity = Instance.new("BodyVelocity")
     flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
     flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5)
@@ -210,46 +212,31 @@ local function StartFly()
             RunService.RenderStepped:Wait()
             
             if hum.MoveDirection.Magnitude > 0 then
-                -- MATEMÁTICA DO VOO DIRECONAL:
-                -- Converte a direção do Joystick do plano horizontal do mundo para o espaço angular tridimensional da Câmera
-                local camCFrame = Camera.CFrame
-                local moveDir = hum.MoveDirection
-                
-                -- Extrai os eixos da câmera para calcular o vetor real de movimento desejado
-                local lookVectors = camCFrame.LookVector
-                local rightVectors = camCFrame.RightVector
-                
-                -- Alinha o movimento do analógico com a rotação da tela
-                -- O analógico nativo do Roblox dita a intenção de direção em Z e X mundiais. Fazemos a transposição:
-                local forwardSpace = moveDir:Dot(camCFrame.LookVector)
-                local sideSpace = moveDir:Dot(camCFrame.RightVector)
-                
-                -- Define a velocidade final em 3D preservando eixos laterais e verticais
-                flyBodyVelocity.velocity = (camCFrame.Position + moveDir).LookVector -- Fallback de segurança básica
-                
-                -- Sistema Mobile Direct: Multiplica a direção analógica absoluta pela matriz de visão da câmera
-                -- Isso garante voar para esquerda, direita, frente e trás em sincronia total
-                local rawVelocity = (camCFrame.Rotation * CFrame.new(Vector3.new(0,0,-1))).Position
-                
-                -- Correção estrutural para evitar bugs de inversão lateral no analógico mobile:
-                local finalDirection = (camCFrame.LookVector * (moveDir.Z * -1)) + (camCFrame.RightVector * moveDir.X)
-                if math.abs(moveDir.Z) < 0.1 then 
-                    finalDirection = (camCFrame.LookVector * (moveDir.Z)) + (camCFrame.RightVector * moveDir.X)
-                end
-                
-                -- Tratamento nativo simplificado de vetores de movimento baseados no Joystick 3D
-                local rotatedVector = camCFrame:VectorToWorldSpace(Vector3.new(
+                -- Correção estrutural: Transforma a direção horizontal do Joystick para o espaço 3D da Câmera
+                -- Permite voar perfeitamente para trás, para os lados, e subir/descer olhando na vertical
+                local direction = Camera.CFrame:VectorToWorldSpace(Vector3.new(
                     hum.MoveDirection.X, 
-                    (hum.MoveDirection.Z * (camCFrame.LookVector.Y)), 
+                    0, 
                     hum.MoveDirection.Z
                 ))
                 
-                -- Multiplica pela velocidade configurada pelo usuário
-                flyBodyVelocity.velocity = hum.MoveDirection * Config.FlySpeed
-                -- Injeta a influência vertical da câmera para permitir subir/descer suavemente
-                flyBodyVelocity.velocity = Vector3.new(hum.MoveDirection.X * Config.FlySpeed, (hum.MoveDirection.Z * -Config.FlySpeed) * camCFrame.LookVector.Y, hum.MoveDirection.Z * Config.FlySpeed)
+                -- Se você estiver empurrando o analógico para frente e olhar para cima/baixo, altera a inclinação de altura
+                local verticalIncline = 0
+                if hum.MoveDirection.Z < 0 then -- Empurrando para frente
+                    verticalIncline = Camera.CFrame.LookVector.Y
+                elseif hum.MoveDirection.Z > 0 then -- Puxando para trás
+                    verticalIncline = -Camera.CFrame.LookVector.Y
+                end
+                
+                -- Aplica a velocidade resultante combinando movimento de translação pura e rotação
+                flyBodyVelocity.velocity = Vector3.new(
+                    direction.X * Config.FlySpeed,
+                    verticalIncline * Config.FlySpeed,
+                    direction.Z * Config.FlySpeed
+                )
             else
-                flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
+                -- Fica pairando parado de forma estável no ar se soltar o analógico
+                flyBodyVelocity.velocity = Vector3.new(0, 0.05, 0)
             end
             flyBodyGyro.cframe = Camera.CFrame
         end
