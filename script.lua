@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.1 (FLY DEFINITIVO + AUTO ATTACK REFEITO)
+-- DELTA MOBILE HUB - VERSÃO 4.2 (FLY DEFINITIVO + SKILL SPAM NO COOLDOWN)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -91,7 +91,7 @@ local Config = {
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
-    AutoAttack = false, AttackSpeed = 0.1
+    SkillSpam = false, SpamSpeed = 0.05 -- Velocidade extrema para derreter bosses
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -284,7 +284,7 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. Configurações de Armas & NOVO MOTOR DE AUTO ATTACK VIA REMOTES
+-- 7. Configurações de Armas & GOD MODE SKILL SPAMMER (NO COOLDOWN OP)
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
 local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
@@ -331,12 +331,13 @@ AddToggle(TabMisc, "AutoEquip Weapon", function(state)
     Config.AutoEquip = state
 end)
 
-AddToggle(TabMisc, "Auto Attack (Ataque Automático)", function(state)
-    Config.AutoAttack = state
+-- MODIFICADO: De Auto Attack para SKILL SPAMMER INSTANTÂNEO
+AddToggle(TabMisc, "Skill Spammer (No Cooldown OP)", function(state)
+    Config.SkillSpam = state
 end)
 
-AddTextBox(TabMisc, "Velocidade do Ataque (Padrão: 0.1)", function(text)
-    Config.AttackSpeed = math.clamp(tonumber(text) or 0.1, 0.01, 5)
+AddTextBox(TabMisc, "Delay do Spam (Recomendado: 0.05)", function(text)
+    Config.SpamSpeed = math.clamp(tonumber(text) or 0.05, 0.01, 2)
 end)
 
 -- Loop AutoEquip
@@ -355,36 +356,32 @@ task.spawn(function()
     end
 end)
 
--- NOVO MOTOR DE DISPARO INTERNO (BYPASS DE ENTRADA DO MOUSE)
+-- MOTOR ULTRA VELOZ DE INJEÇÃO DE SKILLS (IGNORA COOLDOWN LOCAL)
 task.spawn(function()
     while true do
-        if Config.AutoAttack and Player.Character then
+        if Config.SkillSpam and Player.Character then
             local equippedTool = Player.Character:FindFirstChildOfClass("Tool")
             if equippedTool then
-                -- 1. Método Padrão (Tentativa Forçada)
-                equippedTool:Activate()
-                
-                -- 2. Método Avançado (Escaneia Remotes escondidos que os RPGs usam para registrar o golpe)
+                -- Força o disparo direto em todos os Remotes da arma simultaneamente
+                local targetPos = Player:GetMouse().Hit.Position
                 for _, child in pairs(equippedTool:GetDescendants()) do
                     if child:IsA("RemoteEvent") then
-                        -- Dispara o evento passando argumentos genéricos simulando o clique do personagem
+                        -- Simula disparar a skill em direções e com argumentos variados para cobrir qualquer engine de RPG
                         child:FireServer()
-                        child:FireServer(Player:GetMouse().Hit.Position) -- Envia a posição da mira caso o RPG exija rumo
+                        child:FireServer(true)
+                        child:FireServer(targetPos)
+                        child:FireServer("Skill")
+                        child:FireServer("Use")
                     elseif child:IsA("RemoteFunction") then
                         pcall(function()
                             child:InvokeServer()
+                            child:InvokeServer(targetPos)
                         end)
                     end
                 end
-                
-                -- 3. Fallback de verificação de scripts de animação de combate comuns
-                local combatModule = equippedTool:FindFirstChild("Remote") or equippedTool:FindFirstChild("Combat")
-                if combatModule and combatModule:IsA("RemoteEvent") then
-                    combatModule:FireServer("Attack")
-                end
             end
         end
-        task.wait(Config.AttackSpeed)
+        task.wait(Config.SpamSpeed) -- Delay extremamente curto para virar uma metralhadora de magias
     end
 end)
 
