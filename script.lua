@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.7 (FLY ESTILO INFINITE YIELD)
+-- DELTA MOBILE HUB - VERSÃO 1.8 (FLY INFINITE YIELD - EIXOS CORRIGIDOS)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile (Estilo Lógica Pura Infinite Yield)
+-- 4. Fly Mobile (Infinite Yield - Eixos Corrigidos)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -209,28 +209,23 @@ local function StartFly()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
-            -- LÓGICA DO INFINITE YIELD:
-            -- Em vez de ler os inputs brutos processados pelo Personagem, usamos a direção da Câmera combinada 
-            -- com os vetores relativos gerados pelo comportamento do controle (MoveDirection).
             if hum.MoveDirection.Magnitude > 0 then
                 local cameraCFrame = Camera.CFrame
                 local moveDirection = hum.MoveDirection
                 
-                -- Projeta o vetor para frente/trás baseado no analógico e na inclinação da tela
-                local forwardVector = cameraCFrame.LookVector * (-moveDirection.Z)
-                -- Projeta o vetor para esquerda/direita baseado nas laterais da tela
-                local sideVector = cameraCFrame.RightVector * moveDirection.X
+                -- CORREÇÃO DE POLARIDADE (INVERSÃO DE EIXOS MOBILE):
+                -- Trocamos os sinais para alinhar perfeitamente com a leitura nativa do Delta
+                local forwardVector = cameraCFrame.LookVector * moveDirection.Z
+                local sideVector = cameraCFrame.RightVector * (-moveDirection.X)
                 
-                -- Soma as duas forças para criar a direção final perfeita (Sem inversão)
+                -- Junta os vetores corrigidos e aplica a velocidade
                 local finalVelocity = (forwardVector + sideVector).Unit * Config.FlySpeed
                 
                 flyBodyVelocity.velocity = finalVelocity
             else
-                -- Fica totalmente travado/estático no ar quando o analógico não é tocado
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Mantém o corpo olhando para onde a câmera aponta
             flyBodyGyro.cframe = Camera.CFrame
         end
         if flyBodyGyro then flyBodyGyro:Destroy() end
@@ -255,6 +250,7 @@ AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
     end
 end)
 
+-- Restante do script mantido intacto para estabilidade total
 AddToggle(TabMisc, "Ativar WalkSpeed", function(state)
     Config.WalkSpeedActive = state
     if Player.Character and Player.Character:FindFirstChild("Humanoid") then
@@ -286,7 +282,7 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. AutoEquip Weapon (Mecanismo de Lista Dinâmica)
+-- 7. AutoEquip Weapon
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
 local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
@@ -348,7 +344,7 @@ task.spawn(function()
     end
 end)
 
--- 8. Player ESP (Wallhack 3D real via CoreGui)
+-- 8. Player ESP (Wallhack)
 local function RefreshESP()
     espFolder:ClearAllChildren()
     if not Config.PlayerESP then return end
@@ -400,7 +396,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 9. Loop de Persistência Pós-Morte Geral
+-- 9. Loop de Persistência Pós-Morte
 Player.CharacterAdded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
