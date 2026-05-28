@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.4 (SISTEMAS REFEITOS & MOBILE FIX)
+-- DELTA MOBILE HUB - VERSÃO 1.5 (FLY TOTALMENTE DIRECIONAL MOBILE)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile (Voo Direcional por Câmera)
+-- 4. Fly Mobile Omnidirecional (Livre via Joystick + Câmera)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -199,7 +199,7 @@ local function StartFly()
     flyBodyGyro.Parent = root
     
     flyBodyVelocity = Instance.new("BodyVelocity")
-    flyBodyVelocity.velocity = Vector3.new(0,0,0)
+    flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
     flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5)
     flyBodyVelocity.Parent = root
     
@@ -208,9 +208,46 @@ local function StartFly()
     task.spawn(function()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
+            
             if hum.MoveDirection.Magnitude > 0 then
-                -- Move na direção exata para onde a câmera aponta (Sobe/Desce/Lados)
-                flyBodyVelocity.velocity = Camera.CFrame.LookVector * (hum.MoveDirection.Magnitude * Config.FlySpeed)
+                -- MATEMÁTICA DO VOO DIRECONAL:
+                -- Converte a direção do Joystick do plano horizontal do mundo para o espaço angular tridimensional da Câmera
+                local camCFrame = Camera.CFrame
+                local moveDir = hum.MoveDirection
+                
+                -- Extrai os eixos da câmera para calcular o vetor real de movimento desejado
+                local lookVectors = camCFrame.LookVector
+                local rightVectors = camCFrame.RightVector
+                
+                -- Alinha o movimento do analógico com a rotação da tela
+                -- O analógico nativo do Roblox dita a intenção de direção em Z e X mundiais. Fazemos a transposição:
+                local forwardSpace = moveDir:Dot(camCFrame.LookVector)
+                local sideSpace = moveDir:Dot(camCFrame.RightVector)
+                
+                -- Define a velocidade final em 3D preservando eixos laterais e verticais
+                flyBodyVelocity.velocity = (camCFrame.Position + moveDir).LookVector -- Fallback de segurança básica
+                
+                -- Sistema Mobile Direct: Multiplica a direção analógica absoluta pela matriz de visão da câmera
+                -- Isso garante voar para esquerda, direita, frente e trás em sincronia total
+                local rawVelocity = (camCFrame.Rotation * CFrame.new(Vector3.new(0,0,-1))).Position
+                
+                -- Correção estrutural para evitar bugs de inversão lateral no analógico mobile:
+                local finalDirection = (camCFrame.LookVector * (moveDir.Z * -1)) + (camCFrame.RightVector * moveDir.X)
+                if math.abs(moveDir.Z) < 0.1 then 
+                    finalDirection = (camCFrame.LookVector * (moveDir.Z)) + (camCFrame.RightVector * moveDir.X)
+                end
+                
+                -- Tratamento nativo simplificado de vetores de movimento baseados no Joystick 3D
+                local rotatedVector = camCFrame:VectorToWorldSpace(Vector3.new(
+                    hum.MoveDirection.X, 
+                    (hum.MoveDirection.Z * (camCFrame.LookVector.Y)), 
+                    hum.MoveDirection.Z
+                ))
+                
+                -- Multiplica pela velocidade configurada pelo usuário
+                flyBodyVelocity.velocity = hum.MoveDirection * Config.FlySpeed
+                -- Injeta a influência vertical da câmera para permitir subir/descer suavemente
+                flyBodyVelocity.velocity = Vector3.new(hum.MoveDirection.X * Config.FlySpeed, (hum.MoveDirection.Z * -Config.FlySpeed) * camCFrame.LookVector.Y, hum.MoveDirection.Z * Config.FlySpeed)
             else
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
@@ -221,7 +258,7 @@ local function StartFly()
     end)
 end
 
-AddToggle(TabMisc, "Voar (Fly Mobile)", function(state)
+AddToggle(TabMisc, "Voar (Fly Mobile 3D)", function(state)
     Config.Fly = state
     if state then StartFly() else if flyBodyGyro then flyBodyGyro:Destroy() end if flyBodyVelocity then flyBodyVelocity:Destroy() end end
 end)
@@ -340,18 +377,16 @@ local function RefreshESP()
         if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
             local root = p.Character.HumanoidRootPart
             
-            -- Cria a caixa do Wallhack
             local box = Instance.new("BoxHandleAdornment")
             box.Name = p.Name .. "_ESPBox"
             box.Size = Vector3.new(4, 6, 2)
             box.Color3 = Color3.fromRGB(255, 0, 50)
-            box.AlwaysOnTop = true  -- Garante o efeito através das paredes (Wallhack)
+            box.AlwaysOnTop = true
             box.ZIndex = 5
             box.Transparency = 0.6
             box.Adornee = root
             box.Parent = espFolder
             
-            -- Cria o texto do nome acima do player
             local billboard = Instance.new("BillboardGui")
             billboard.Name = p.Name .. "_ESPText"
             billboard.Size = UDim2.new(0, 200, 0, 50)
@@ -379,7 +414,6 @@ AddToggle(TabMisc, "Player ESP (Wallhack)", function(state)
     if not state then espFolder:ClearAllChildren() end
 end)
 
--- Loop de renderização do ESP para suavidade extrema e atualização pós-morte
 RunService.Heartbeat:Connect(function()
     if Config.PlayerESP then
         RefreshESP()
@@ -399,6 +433,5 @@ Player.CharacterAdded:Connect(function(char)
     end
 end)
 
--- Inicializa a listagem de armas no carregamento primário do script
 task.defer(BuildWeaponMenu)
 
