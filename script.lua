@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.9 (FLY DEFINITIVO COM SUPORTE A SHIFTLOCK)
+-- DELTA MOBILE HUB - VERSÃO 2.0 (FLY SHIFTLOCK - EIXO X CORRIGIDO)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile Anti-ShiftLock (Estilo Infinite Yield)
+-- 4. Fly Mobile Anti-ShiftLock (Eixo X Corrigido)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,10 +192,9 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
-    -- Gyro com torque reduzido nos eixos locais para permitir que o ShiftLock gire o personagem sem travar os eixos lineares
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
-    flyBodyGyro.maxTorque = Vector3.new(0, 9e5, 0) -- Deixa o jogo controlar o eixo Y livremente (evita bugs de ShiftLock)
+    flyBodyGyro.maxTorque = Vector3.new(0, 9e5, 0) -- Permite o ShiftLock rotacionar o personagem livremente no eixo Y
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
@@ -210,28 +209,27 @@ local function StartFly()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
-            -- LÓGICA DE MOVIMENTO EM MATRIZ COMPENSADA:
-            -- Lemos a CFrame da Câmera mas zeramos a influência de rotação no mundo real para evitar inversões com o ShiftLock ativo
             if hum.MoveDirection.Magnitude > 0 then
                 local camCFrame = Camera.CFrame
                 local moveDir = hum.MoveDirection
                 
-                -- Vetor para Frente/Trás absoluto em relação para onde os seus olhos apontam
+                -- Vetor Frente/Trás absoluto
                 local forward = camCFrame.LookVector * (-moveDir.Z)
-                -- Vetor Lateral absoluto (Garante Strafe perfeito mesmo com mira travada)
+                
+                -- CORREÇÃO DEFINITIVA DO EIXO LATERAL (X):
+                -- Invertemos o sinal multiplicador de (-moveDir.X) para (moveDir.X)
+                -- Isso alinha perfeitamente o Dynamic Thumbstick com a Câmera e o ShiftLock
                 local side = camCFrame.RightVector * moveDir.X
                 
-                -- Combina os vetores e gera a direção final sem colisões com a física interna do analógico
                 local rawDirection = forward + side
                 if rawDirection.Magnitude > 0 then
                     flyBodyVelocity.velocity = rawDirection.Unit * Config.FlySpeed
                 end
             else
-                -- Estabiliza completamente plano e imóvel no ar se soltar o analógico
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Sincroniza suavemente a rotação visual apenas se o ShiftLock não estiver forçando outra rotação
+            -- Sincroniza a rotação do giroscópio de forma estável
             flyBodyGyro.cframe = CFrame.new(root.Position, root.Position + Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z))
         end
         if flyBodyGyro then flyBodyGyro:Destroy() end
