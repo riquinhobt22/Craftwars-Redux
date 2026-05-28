@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.2 (FLY DEFINITIVO + SKILL SPAM NO COOLDOWN)
+-- DELTA MOBILE HUB - VERSÃO 4.3 (FLY DEFINITIVO + SAFE SKILL SPAMMER)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -91,7 +91,7 @@ local Config = {
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
-    SkillSpam = false, SpamSpeed = 0.05 -- Velocidade extrema para derreter bosses
+    SkillSpam = false, SpamSpeed = 0.15 -- Valor inicial levemente aumentado para máxima compatibilidade
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -284,7 +284,7 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. Configurações de Armas & GOD MODE SKILL SPAMMER (NO COOLDOWN OP)
+-- 7. Configurações de Armas & SAFE SKILL SPAMMER
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
 local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
@@ -331,13 +331,12 @@ AddToggle(TabMisc, "AutoEquip Weapon", function(state)
     Config.AutoEquip = state
 end)
 
--- MODIFICADO: De Auto Attack para SKILL SPAMMER INSTANTÂNEO
-AddToggle(TabMisc, "Skill Spammer (No Cooldown OP)", function(state)
+AddToggle(TabMisc, "Skill Spammer (Anti-Trava)", function(state)
     Config.SkillSpam = state
 end)
 
-AddTextBox(TabMisc, "Delay do Spam (Recomendado: 0.05)", function(text)
-    Config.SpamSpeed = math.clamp(tonumber(text) or 0.05, 0.01, 2)
+AddTextBox(TabMisc, "Calibrar Delay (Recomendado: 0.15 a 0.3)", function(text)
+    Config.SpamSpeed = math.clamp(tonumber(text) or 0.15, 0.01, 3)
 end)
 
 -- Loop AutoEquip
@@ -356,32 +355,42 @@ task.spawn(function()
     end
 end)
 
--- MOTOR ULTRA VELOZ DE INJEÇÃO DE SKILLS (IGNORA COOLDOWN LOCAL)
+-- MOTOR ESTABILIZADO ANTI-LOCKUP
 task.spawn(function()
     while true do
         if Config.SkillSpam and Player.Character then
             local equippedTool = Player.Character:FindFirstChildOfClass("Tool")
             if equippedTool then
-                -- Força o disparo direto em todos os Remotes da arma simultaneamente
                 local targetPos = Player:GetMouse().Hit.Position
+                
+                -- Armazena os remotes para evitar chamadas de processamento pesadas consecutivas
+                local remotes = {}
                 for _, child in pairs(equippedTool:GetDescendants()) do
-                    if child:IsA("RemoteEvent") then
-                        -- Simula disparar a skill em direções e com argumentos variados para cobrir qualquer engine de RPG
-                        child:FireServer()
-                        child:FireServer(true)
-                        child:FireServer(targetPos)
-                        child:FireServer("Skill")
-                        child:FireServer("Use")
-                    elseif child:IsA("RemoteFunction") then
+                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                        table.insert(remotes, child)
+                    end
+                end
+                
+                -- Executa os disparos intercalados com micro-delays para não corromper o estado interno da arma
+                for _, remote in pairs(remotes) do
+                    if not Config.SkillSpam then break end
+                    
+                    if remote:IsA("RemoteEvent") then
                         pcall(function()
-                            child:InvokeServer()
-                            child:InvokeServer(targetPos)
+                            remote:FireServer()
+                            remote:FireServer(targetPos)
+                        end)
+                    elseif remote:IsA("RemoteFunction") then
+                        pcall(function()
+                            task.spawn(function() remote:InvokeServer(targetPos) end)
                         end)
                     end
+                    -- Pequena pausa controlada entre remotes para as armas mais sensíveis não travarem
+                    task.wait(0.02) 
                 end
             end
         end
-        task.wait(Config.SpamSpeed) -- Delay extremamente curto para virar uma metralhadora de magias
+        task.wait(Config.SpamSpeed)
     end
 end)
 
