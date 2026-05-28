@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.6 (FLY OMNIDIRECIONAL CORRIGIDO)
+-- DELTA MOBILE HUB - VERSÃO 1.7 (FLY ESTILO INFINITE YIELD)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile Dinâmico (Joystick Livre + Rotação 3D de Câmeras)
+-- 4. Fly Mobile (Estilo Lógica Pura Infinite Yield)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,14 +192,12 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
-    -- Trava a rotação do corpo de acordo com a visão da câmera
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
     flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5)
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
-    -- Controla o vetor de velocidade linear
     flyBodyVelocity = Instance.new("BodyVelocity")
     flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
     flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5)
@@ -211,33 +209,28 @@ local function StartFly()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
+            -- LÓGICA DO INFINITE YIELD:
+            -- Em vez de ler os inputs brutos processados pelo Personagem, usamos a direção da Câmera combinada 
+            -- com os vetores relativos gerados pelo comportamento do controle (MoveDirection).
             if hum.MoveDirection.Magnitude > 0 then
-                -- Correção estrutural: Transforma a direção horizontal do Joystick para o espaço 3D da Câmera
-                -- Permite voar perfeitamente para trás, para os lados, e subir/descer olhando na vertical
-                local direction = Camera.CFrame:VectorToWorldSpace(Vector3.new(
-                    hum.MoveDirection.X, 
-                    0, 
-                    hum.MoveDirection.Z
-                ))
+                local cameraCFrame = Camera.CFrame
+                local moveDirection = hum.MoveDirection
                 
-                -- Se você estiver empurrando o analógico para frente e olhar para cima/baixo, altera a inclinação de altura
-                local verticalIncline = 0
-                if hum.MoveDirection.Z < 0 then -- Empurrando para frente
-                    verticalIncline = Camera.CFrame.LookVector.Y
-                elseif hum.MoveDirection.Z > 0 then -- Puxando para trás
-                    verticalIncline = -Camera.CFrame.LookVector.Y
-                end
+                -- Projeta o vetor para frente/trás baseado no analógico e na inclinação da tela
+                local forwardVector = cameraCFrame.LookVector * (-moveDirection.Z)
+                -- Projeta o vetor para esquerda/direita baseado nas laterais da tela
+                local sideVector = cameraCFrame.RightVector * moveDirection.X
                 
-                -- Aplica a velocidade resultante combinando movimento de translação pura e rotação
-                flyBodyVelocity.velocity = Vector3.new(
-                    direction.X * Config.FlySpeed,
-                    verticalIncline * Config.FlySpeed,
-                    direction.Z * Config.FlySpeed
-                )
+                -- Soma as duas forças para criar a direção final perfeita (Sem inversão)
+                local finalVelocity = (forwardVector + sideVector).Unit * Config.FlySpeed
+                
+                flyBodyVelocity.velocity = finalVelocity
             else
-                -- Fica pairando parado de forma estável no ar se soltar o analógico
-                flyBodyVelocity.velocity = Vector3.new(0, 0.05, 0)
+                -- Fica totalmente travado/estático no ar quando o analógico não é tocado
+                flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
+            
+            -- Mantém o corpo olhando para onde a câmera aponta
             flyBodyGyro.cframe = Camera.CFrame
         end
         if flyBodyGyro then flyBodyGyro:Destroy() end
@@ -245,7 +238,7 @@ local function StartFly()
     end)
 end
 
-AddToggle(TabMisc, "Voar (Fly Mobile 3D)", function(state)
+AddToggle(TabMisc, "Voar (Fly Infinite Yield)", function(state)
     Config.Fly = state
     if state then StartFly() else if flyBodyGyro then flyBodyGyro:Destroy() end if flyBodyVelocity then flyBodyVelocity:Destroy() end end
 end)
