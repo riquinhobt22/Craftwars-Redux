@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 1.8 (FLY INFINITE YIELD - EIXOS CORRIGIDOS)
+-- DELTA MOBILE HUB - VERSÃO 1.9 (FLY DEFINITIVO COM SUPORTE A SHIFTLOCK)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -178,7 +178,7 @@ AddToggle(TabMisc, "CameraShake", function(state)
     end
 end)
 
--- 4. Fly Mobile (Infinite Yield - Eixos Corrigidos)
+-- 4. Fly Mobile Anti-ShiftLock (Estilo Infinite Yield)
 AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
     Config.FlySpeed = math.clamp(tonumber(text) or 50, 0, 999)
 end)
@@ -192,9 +192,10 @@ local function StartFly()
     if flyBodyGyro then flyBodyGyro:Destroy() end
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     
+    -- Gyro com torque reduzido nos eixos locais para permitir que o ShiftLock gire o personagem sem travar os eixos lineares
     flyBodyGyro = Instance.new("BodyGyro")
     flyBodyGyro.P = 9e4
-    flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5)
+    flyBodyGyro.maxTorque = Vector3.new(0, 9e5, 0) -- Deixa o jogo controlar o eixo Y livremente (evita bugs de ShiftLock)
     flyBodyGyro.cframe = root.CFrame
     flyBodyGyro.Parent = root
     
@@ -209,24 +210,29 @@ local function StartFly()
         while Config.Fly and root and root.Parent and hum and hum.Parent do
             RunService.RenderStepped:Wait()
             
+            -- LÓGICA DE MOVIMENTO EM MATRIZ COMPENSADA:
+            -- Lemos a CFrame da Câmera mas zeramos a influência de rotação no mundo real para evitar inversões com o ShiftLock ativo
             if hum.MoveDirection.Magnitude > 0 then
-                local cameraCFrame = Camera.CFrame
-                local moveDirection = hum.MoveDirection
+                local camCFrame = Camera.CFrame
+                local moveDir = hum.MoveDirection
                 
-                -- CORREÇÃO DE POLARIDADE (INVERSÃO DE EIXOS MOBILE):
-                -- Trocamos os sinais para alinhar perfeitamente com a leitura nativa do Delta
-                local forwardVector = cameraCFrame.LookVector * moveDirection.Z
-                local sideVector = cameraCFrame.RightVector * (-moveDirection.X)
+                -- Vetor para Frente/Trás absoluto em relação para onde os seus olhos apontam
+                local forward = camCFrame.LookVector * (-moveDir.Z)
+                -- Vetor Lateral absoluto (Garante Strafe perfeito mesmo com mira travada)
+                local side = camCFrame.RightVector * moveDir.X
                 
-                -- Junta os vetores corrigidos e aplica a velocidade
-                local finalVelocity = (forwardVector + sideVector).Unit * Config.FlySpeed
-                
-                flyBodyVelocity.velocity = finalVelocity
+                -- Combina os vetores e gera a direção final sem colisões com a física interna do analógico
+                local rawDirection = forward + side
+                if rawDirection.Magnitude > 0 then
+                    flyBodyVelocity.velocity = rawDirection.Unit * Config.FlySpeed
+                end
             else
+                -- Estabiliza completamente plano e imóvel no ar se soltar o analógico
                 flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
             end
             
-            flyBodyGyro.cframe = Camera.CFrame
+            -- Sincroniza suavemente a rotação visual apenas se o ShiftLock não estiver forçando outra rotação
+            flyBodyGyro.cframe = CFrame.new(root.Position, root.Position + Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z))
         end
         if flyBodyGyro then flyBodyGyro:Destroy() end
         if flyBodyVelocity then flyBodyVelocity:Destroy() end
@@ -250,7 +256,6 @@ AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
     end
 end)
 
--- Restante do script mantido intacto para estabilidade total
 AddToggle(TabMisc, "Ativar WalkSpeed", function(state)
     Config.WalkSpeedActive = state
     if Player.Character and Player.Character:FindFirstChild("Humanoid") then
