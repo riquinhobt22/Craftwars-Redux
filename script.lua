@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.0 (FLY DEFINITIVO + AUTO ATTACK PREMIUM)
+-- DELTA MOBILE HUB - VERSÃO 4.1 (FLY DEFINITIVO + AUTO ATTACK REFEITO)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -91,7 +91,7 @@ local Config = {
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
-    AutoAttack = false, AttackSpeed = 0.1 -- Velocidade do clique automático (segundos)
+    AutoAttack = false, AttackSpeed = 0.1
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -284,7 +284,7 @@ AddToggle(TabMisc, "FullBright", function(state)
     end
 end)
 
--- 7. Configurações de Armas & Auto Attack (NÃO DETECTÁVEL)
+-- 7. Configurações de Armas & NOVO MOTOR DE AUTO ATTACK VIA REMOTES
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
 local WeaponListFrame = Instance.new("Frame") ; WeaponListFrame.Parent = TabMisc ; WeaponListFrame.Size = UDim2.new(1, -6, 0, 100) ; WeaponListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 local ListCorner = Instance.new("UICorner") ; ListCorner.CornerRadius = UDim.new(0, 6) ; ListCorner.Parent = WeaponListFrame
@@ -331,55 +331,60 @@ AddToggle(TabMisc, "AutoEquip Weapon", function(state)
     Config.AutoEquip = state
 end)
 
--- NOVO: Opção On/Off para o Auto Attack Contínuo
 AddToggle(TabMisc, "Auto Attack (Ataque Automático)", function(state)
     Config.AutoAttack = state
 end)
 
--- NOVO: Ajuste fino de velocidade do clique (caso o RPG tenha delay interno)
 AddTextBox(TabMisc, "Velocidade do Ataque (Padrão: 0.1)", function(text)
     Config.AttackSpeed = math.clamp(tonumber(text) or 0.1, 0.01, 5)
 end)
 
--- Loop principal em Thread separada gerenciando o AutoEquip e o AutoAttack juntos
+-- Loop AutoEquip
 task.spawn(function()
     while true do
-        task.wait(0.1) -- Loop de verificação de Equip leve
-        
-        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-            -- Gerenciador do AutoEquip
-            if Config.AutoEquip and Config.SelectedWeapon ~= "" then
-                local currentTool = Player.Character:FindFirstChildOfClass("Tool")
-                if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
-                    local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
-                    if tool and tool:IsA("Tool") then
-                        Player.Character.Humanoid:EquipTool(tool)
-                    end
+        task.wait(0.2)
+        if Config.AutoEquip and Config.SelectedWeapon ~= "" and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            local currentTool = Player.Character:FindFirstChildOfClass("Tool")
+            if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
+                local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
+                if tool and tool:IsA("Tool") then
+                    Player.Character.Humanoid:EquipTool(tool)
                 end
             end
         end
     end
 end)
 
--- Loop exclusivo do Auto Attack (Separado para manter a alta velocidade sem lagar)
+-- NOVO MOTOR DE DISPARO INTERNO (BYPASS DE ENTRADA DO MOUSE)
 task.spawn(function()
     while true do
         if Config.AutoAttack and Player.Character then
-            -- Verifica se há QUALQUER arma equipada na mão do personagem no momento
             local equippedTool = Player.Character:FindFirstChildOfClass("Tool")
-            
             if equippedTool then
-                -- Ativa a arma de forma 100% segura e virtual (Ignora cliques de tela ou mouse)
+                -- 1. Método Padrão (Tentativa Forçada)
                 equippedTool:Activate()
                 
-                -- Se o jogo usar sistemas de animação antigos baseados em cliques de mouses clássicos, isso reforça o ataque:
-                local toolClick = equippedTool:FindFirstChild("Click") or equippedTool:FindFirstChild("RemoteEvent")
-                if toolClick and toolClick:IsA("RemoteEvent") then
-                    toolClick:FireServer()
+                -- 2. Método Avançado (Escaneia Remotes escondidos que os RPGs usam para registrar o golpe)
+                for _, child in pairs(equippedTool:GetDescendants()) do
+                    if child:IsA("RemoteEvent") then
+                        -- Dispara o evento passando argumentos genéricos simulando o clique do personagem
+                        child:FireServer()
+                        child:FireServer(Player:GetMouse().Hit.Position) -- Envia a posição da mira caso o RPG exija rumo
+                    elseif child:IsA("RemoteFunction") then
+                        pcall(function()
+                            child:InvokeServer()
+                        end)
+                    end
+                end
+                
+                -- 3. Fallback de verificação de scripts de animação de combate comuns
+                local combatModule = equippedTool:FindFirstChild("Remote") or equippedTool:FindFirstChild("Combat")
+                if combatModule and combatModule:IsA("RemoteEvent") then
+                    combatModule:FireServer("Attack")
                 end
             end
         end
-        task.wait(Config.AttackSpeed) -- Executa na velocidade configurada (0.1s = 10 ataques por segundo)
+        task.wait(Config.AttackSpeed)
     end
 end)
 
