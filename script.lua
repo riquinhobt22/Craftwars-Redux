@@ -1,7 +1,6 @@
 -- ====================================================================
--- DELTA MOBILE HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.3 - UNIFICADA)
+-- DELTA MOBILE HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.3.1 - OTIMIZADA)
 -- ====================================================================
-
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
@@ -16,6 +15,7 @@ if Player:WaitForChild("PlayerGui"):FindFirstChild("DeltaCustomHub_Premium") the
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DeltaCustomHub_Premium"
 ScreenGui.ResetOnSpawn = false
+
 local success, err = pcall(function() ScreenGui.Parent = CoreGui end)
 if not success then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
@@ -96,6 +96,7 @@ local Config = {
 -- Variáveis de Controle dos Sistemas
 local flyBodyGyro, flyBodyVelocity
 local espConnections = {}
+local espRegistry = {} -- Correção do vazamento de memória e remoção do ESP
 
 -- 5. Motores de Elementos (Abas, Toggles, Caixas de Texto, Botões)
 local currentTabFrame = nil
@@ -145,10 +146,231 @@ end
 -- ====================================================================
 -- 6. CRIAÇÃO DA JANELA MISC E IMPLEMENTAÇÃO DAS FUNÇÕES
 -- ====================================================================
-
 local TabMisc = CreateTab("Misc")
 
 -- 1. FastMode
 AddToggle(TabMisc, "FastMode", function(state)
     Config.FastMode = state
     for _, v in pairs(workspace:GetDescendants()) do
+        if state and (v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation")) then
+            v.Material = Enum.Material.SmoothPlastic
+        elseif not state and (v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation")) then
+            v.Material = Enum.Material.Plastic
+        end
+    end
+end)
+
+-- 2. Shadows
+AddToggle(TabMisc, "Sombra do Jogo (Shadows)", function(state)
+    Config.Shadows = state
+    Lighting.GlobalShadows = state
+end)
+
+-- 3. CameraShake
+AddToggle(TabMisc, "CameraShake", function(state)
+    Config.CameraShake = state
+    if not state then
+        RunService:BindToRenderStep("NoShake", Enum.RenderPriority.Camera.Value + 1, function()
+            if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+                Player.Character.Humanoid.CameraOffset = Vector3.new(0,0,0)
+            end
+        end)
+    else
+        RunService:UnbindFromRenderStep("NoShake")
+    end
+end)
+
+-- 4. Fly (Ajuste de Velocidade e Controles)
+AddTextBox(TabMisc, "Ajustar Fly Speed (0-999)", function(text)
+    local num = math.clamp(tonumber(text) or 50, 0, 999)
+    Config.FlySpeed = num
+end)
+
+local function StartFly()
+    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
+    local root = Player.Character.HumanoidRootPart
+    
+    -- Limpeza preventiva de instâncias antigas de Fly
+    if flyBodyGyro then flyBodyGyro:Destroy() end
+    if flyBodyVelocity then flyBodyVelocity:Destroy() end
+    
+    flyBodyGyro = Instance.new("BodyGyro")
+    flyBodyGyro.P = 9e4 ; flyBodyGyro.maxTorque = Vector3.new(9e5, 9e5, 9e5) ; flyBodyGyro.cframe = root.CFrame ; flyBodyGyro.Parent = root
+    
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyVelocity.velocity = Vector3.new(0,0.1,0) ; flyBodyVelocity.maxForce = Vector3.new(9e5, 9e5, 9e5) ; flyBodyVelocity.Parent = root
+    local Camera = workspace.CurrentCamera
+    
+    task.spawn(function()
+        while Config.Fly and root and root.Parent and Player.Character and Player.Character:FindFirstChild("Humanoid") do
+            RunService.RenderStepped:Wait()
+            local dir = Vector3.new(0,0,0)
+            if Player.Character.Humanoid.MoveDirection.Magnitude > 0 then
+                dir = Player.Character.Humanoid.MoveDirection
+            end
+            flyBodyVelocity.velocity = dir * Config.FlySpeed
+            flyBodyGyro.cframe = Camera.CFrame
+        end
+        -- Garante a destruição ao sair do loop
+        if flyBodyGyro then flyBodyGyro:Destroy() end
+        if flyBodyVelocity then flyBodyVelocity:Destroy() end
+    end)
+end
+
+local function StopFly()
+    if flyBodyGyro then flyBodyGyro:Destroy() end
+    if flyBodyVelocity then flyBodyVelocity:Destroy() end
+end
+
+AddToggle(TabMisc, "Voar (Fly)", function(state)
+    Config.Fly = state
+    if state then StartFly() else StopFly() end
+end)
+
+AddToggle(TabMisc, "Manter Fly após morrer", function(state)
+    Config.KeepFlyAfterDeath = state
+end)
+
+-- 5. WalkSpeed (Ajuste e Fix)
+AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
+    local num = math.clamp(tonumber(text) or 16, 0, 999)
+    Config.WalkSpeedValue = num
+    if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        Player.Character.Humanoid.WalkSpeed = num
+    end
+end)
+
+AddToggle(TabMisc, "Ativar WalkSpeed", function(state)
+    Config.WalkSpeedActive = state
+    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        Player.Character.Humanoid.WalkSpeed = state and Config.WalkSpeedValue or 16
+    end
+end)
+
+AddToggle(TabMisc, "Manter WalkSpeed após morrer", function(state)
+    Config.KeepSpeedAfterDeath = state
+end)
+
+-- Loop nativo para impedir redefinições do jogo na velocidade
+RunService.Heartbeat:Connect(function()
+    if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        if Player.Character.Humanoid.WalkSpeed ~= Config.WalkSpeedValue then
+            Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
+        end
+    end
+end)
+
+-- 6. FullBright
+AddToggle(TabMisc, "FullBright", function(state)
+    Config.Fullbright = state
+    if state then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 2
+    else
+        Lighting.Ambient = Color3.fromRGB(130, 130, 130)
+        Lighting.OutdoorAmbient = Color3.fromRGB(130, 130, 130)
+        Lighting.Brightness = 1
+    end
+end)
+
+-- 7. AutoEquip Weapon (Lógica Dinâmica de Inventário)
+local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Selecionada: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansItalic ; WeaponLabel.TextColor3 = Color3.fromRGB(180, 180, 180) ; WeaponLabel.TextSize = 12
+AddTextBox(TabMisc, "Nome Exato da Arma para Equipar", function(text)
+    Config.SelectedWeapon = text
+    WeaponLabel.Text = "Arma Selecionada: " .. text
+end)
+
+AddButton(TabMisc, "Atualizar/Checar Mochila (Refresh)", function()
+    local encontrou = false
+    for _, item in pairs(Player.Backpack:GetChildren()) do
+        if item:IsA("Tool") and item.Name:lower() == Config.SelectedWeapon:lower() then
+            encontrou = true
+            break
+        end
+    end
+    if encontrou then WeaponLabel.Text = "Arma Validada na Mochila: " .. Config.SelectedWeapon else WeaponLabel.Text = "Arma não encontrada! Use Refresh." end
+end)
+
+AddToggle(TabMisc, "AutoEquip Weapon", function(state)
+    Config.AutoEquip = state
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Config.AutoEquip and Config.SelectedWeapon ~= "" and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            local currentTool = Player.Character:FindFirstChildOfClass("Tool")
+            if not currentTool or currentTool.Name:lower() ~= Config.SelectedWeapon:lower() then
+                local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
+                if tool and tool:IsA("Tool") then
+                    Player.Character.Humanoid:EquipTool(tool)
+                end
+            end
+        end
+    end
+end)
+
+-- 8. Player ESP (Visão Além das Paredes)
+local function CreateESP(p)
+    if p == Player then return end
+    
+    local function apply(character)
+        if not character then return end
+        local root = character:WaitForChild("HumanoidRootPart", 5)
+        if root and not root:FindFirstChild("ESPHighlight") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "ESPHighlight"
+            highlight.FillColor = Color3.fromRGB(255, 0, 50)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.Parent = root
+        end
+    end
+    
+    -- Registra o evento CharacterAdded do jogador específico para gerenciar pós-morte
+    local conn = p.CharacterAdded:Connect(function(char)
+        if Config.PlayerESP then
+            apply(char)
+        end
+    end)
+    table.insert(espRegistry, conn)
+    
+    if p.Character then apply(p.Character) end
+end
+
+AddToggle(TabMisc, "Player ESP", function(state)
+    Config.PlayerESP = state
+    if state then
+        for _, p in pairs(game.Players:GetPlayers()) do CreateESP(p) end
+        espConnections[#espConnections+1] = game.Players.PlayerAdded:Connect(CreateESP)
+    else
+        -- Limpa conexões principais do PlayerAdded
+        for _, conn in pairs(espConnections) do conn:Disconnect() end
+        espConnections = {}
+        
+        -- Limpa conexões internas do CharacterAdded de cada player (Evita memory leak)
+        for _, conn in pairs(espRegistry) do conn:Disconnect() end
+        espRegistry = {}
+        
+        -- Remove os efeitos visuais
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart:FindFirstChild("ESPHighlight") then
+                p.Character.HumanoidRootPart.ESPHighlight:Destroy()
+            end
+        end
+    end
+end)
+
+-- 9. Loop de Persistência Pós-Morte (WalkSpeed e Fly)
+Player.CharacterAdded:Connect(function(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
+    task.wait(0.8)
+    if Config.KeepSpeedAfterDeath and Config.WalkSpeedActive then
+        hum.WalkSpeed = Config.WalkSpeedValue
+    end
+    if Config.KeepFlyAfterDeath and Config.Fly then
+        StartFly()
+    end
+end)
