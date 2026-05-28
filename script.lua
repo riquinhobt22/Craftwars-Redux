@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE CUSTOM HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.1 - FIX)
+-- DELTA MOBILE CUSTOM HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.2 - COMPLETA)
 -- ====================================================================
 
 local Player = game.Players.LocalPlayer
