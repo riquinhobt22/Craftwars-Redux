@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE CUSTOM HUB - ESTRUTURA PREMIUM ULTRA-FLUIDA
+-- DELTA MOBILE CUSTOM HUB - CÓDIGO FONTE INTEGRAL (VERSÃO 1.0)
 -- ====================================================================
 
 local Player = game.Players.LocalPlayer
@@ -264,3 +264,20 @@ local function AddButton(tab, text, callback)
         callback()
     end)
 end
+
+-- ====================================================================
+-- 7. INSTANCIANDO AS ABAS E LOGICAS DE FUNÇÕES
+-- ====================================================================
+
+local TabConf = CreateTab("Conf")
+local TabMov = CreateTab("Movimento")
+local TabMisc = CreateTab("Misc")
+local TabTools = CreateTab("Tools")
+
+-- 🔹 ABA: CONF
+AddButton(TabConf, "Destruir Interface (Unload)", function()
+    ScreenGui:Destroy()
+end)
+
+AddButton(TabConf, "Reajustar Posição do Menu", function()
+
