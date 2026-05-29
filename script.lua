@@ -500,4 +500,3 @@ Player.CharacterAdded:Connect(function(char)
 end)
 
 task.defer(BuildWeaponMenu)
-
