@@ -42,7 +42,7 @@ end)
 ToggleBtn.InputChanged:Connect(function(input)
     if draggingBtn and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragBtnStart
-        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
+        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
     end
 end)
 ToggleBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingBtn = false end end)
@@ -405,7 +405,7 @@ task.spawn(function()
     end
 end)
 
--- MOTOR ULTRA AGRESSIVO: CAÇADOR DE CÔR SÓLIDA E FLASH (ANTI-BLINDNESS MOTOR)
+-- MOTOR SUPREMO ANTI-BLINDNESS (CAÇADOR DE CÔR SÓLIDA E FLASH)
 RunService.Heartbeat:Connect(function()
     local Camera = workspace.CurrentCamera
 
@@ -424,9 +424,9 @@ RunService.Heartbeat:Connect(function()
         if Camera then
             for _, obj in pairs(Camera:GetChildren()) do
                 if obj:IsA("ColorCorrectionEffect") or obj:IsA("BlurEffect") or obj:IsA("BloomEffect") or obj:IsA("SunRaysEffect") or obj:IsA("Atmosphere") then
-                    obj:Destroy()
+                    obj:Destroy() -- Apaga na hora tentativas de flash de câmera roxa/branca
                 elseif obj:IsA("BasePart") or obj:IsA("MeshPart") then
-                    obj:Destroy()
+                    obj:Destroy() -- Remove peças 3D coladas na visão
                 end
             end
         end
@@ -440,7 +440,6 @@ RunService.Heartbeat:Connect(function()
         Lighting.TintColor = Color3.fromRGB(255, 255, 255)
         Lighting.FogEnd = 999999 -- Expulsa paredes de fumaça geradas por skills do boss
         Lighting.FogStart = 999999
-        Lighting.Atmosphere.Density = 0 pcall(function() Lighting.Atmosphere:Destroy() end)
     end
 
     if Config.CleanParticles then
@@ -464,7 +463,7 @@ RunService.Heartbeat:Connect(function()
                 for _, child in pairs(v:GetDescendants()) do
                     if child:IsA("Frame") or child:IsA("ImageLabel") then
                         child.BackgroundTransparency = 1
-                        child.Visible = false
+                        child.Visible = false -- Força transparência total em flashes piscantes brancos, pretos ou roxos
                     end
                 end
             end
