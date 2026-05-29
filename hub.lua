@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 6.0 (GLOBAL PURGE & TOTAL PERFORMANCE)
+-- DELTA MOBILE HUB - VERSÃO 6.1 (WEAPON BLACKOUT - JOGABILIDADE LIVRE)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -42,7 +42,7 @@ end)
 ToggleBtn.InputChanged:Connect(function(input)
     if draggingBtn and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragBtnStart
-        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
+        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
     end
 end)
 ToggleBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingBtn = false end end)
@@ -87,7 +87,7 @@ local ContentContainer = Instance.new("Frame") ; ContentContainer.Parent = MainF
 
 -- Tabelas de Controle Globais
 local Config = {
-    GlobalPurge = false, Fullbright = false, PlayerESP = false,
+    WeaponBlackout = false, Fullbright = false, PlayerESP = false,
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
@@ -147,19 +147,9 @@ end
 -- ====================================================================
 local TabMisc = CreateTab("Main Menu")
 
--- BOTÃO PRINCIPAL DE ANULAÇÃO GLOBAL (FOCADO NA SUA REQUISIÇÃO)
-AddToggle(TabMisc, "Modo Performance Pura (Global Purge)", function(state)
-    Config.GlobalPurge = state
-    if state then
-        -- Limpeza imediata ao ativar ao invocar materiais básicos
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
-                v.Material = Enum.Material.SmoothPlastic
-            elseif v:IsA("Decal") or v:IsA("Texture") then
-                v:Destroy()
-            end
-        end
-    end
+-- NOVO BOTÃO EQUILIBRADO: APENAS OCULTA SKILLS E ANIMAÇÕES DE ARMAS
+AddToggle(TabMisc, "Ocultar Skills Globais (Weapon Blackout)", function(state)
+    Config.WeaponBlackout = state
 end)
 
 -- Motor Fly
@@ -271,7 +261,7 @@ AddToggle(TabMisc, "AutoEquip Weapon", function(state) Config.AutoEquip = state 
 AddToggle(TabMisc, "Skill Spammer (Anti-Trava)", function(state) Config.SkillSpam = state end)
 AddTextBox(TabMisc, "Calibrar Delay (Recomendado: 0.15 a 0.3)", function(text) Config.SpamSpeed = math.clamp(tonumber(text) or 0.15, 0.01, 3) end)
 
--- Loops de suporte remotes (Executa o Spam de Skill em Background)
+-- Loops de suporte remotes
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -311,70 +301,77 @@ task.spawn(function()
 end)
 
 -- ====================================================================
--- SISTEMA DEFLEXIVO GLOBAL (RODA A CADA QUADRO DE RENDERIZAÇÃO)
+-- INTERCEPTADOR CIRÚRGICO DE WEAPONS (FOCADO APENAS EM PODERES EXTERNOS)
 -- ====================================================================
 RunService.RenderStepped:Connect(function()
-    if not Config.GlobalPurge then return end
+    if not Config.WeaponBlackout then return end
     
     local Camera = workspace.CurrentCamera
     
-    -- 1. BLOQUEIO E ARRESTO COMPLETO DE CÂMERA (PREVINE TREMORES, CINEMATICS E CUTSCENES)
+    -- 1. PROTEÇÃO DE CÂMERA (Impede a arma de mexer ou afastar a sua visão)
     if Camera then
-        Camera.CameraType = Enum.CameraType.Custom -- Destrava a câmera de scripts de cutscene
-        Camera.FieldOfView = 70 -- Fixa o campo de visão impossibilitando distorções de zoom
+        Camera.CameraType = Enum.CameraType.Custom 
+        Camera.FieldOfView = 70 
     end
     
     if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        Player.Character.Humanoid.CameraOffset = Vector3.new(0,0,0) -- Zera balanços de tela forçados
+        Player.Character.Humanoid.CameraOffset = Vector3.new(0,0,0) -- Zera tremores de tela das skills
         
-        -- 2. PARADA FORÇADA DE ANIMAÇÕES (CORTA ANIMAÇÃO DE ARMAS E PODERES)
+        -- 2. BLOQUEIO DE ANIMAÇÕES DE ATAQUE DA FERRAMENTA EQUIPADA
+        local Tool = Player.Character:FindFirstChildOfClass("Tool")
         local Animator = Player.Character.Humanoid:FindFirstChildOfClass("Animator")
-        if Animator then
+        if Tool and Animator then
             for _, track in pairs(Animator:GetPlayingAnimationTracks()) do
-                track:Stop(0) -- Para absolutamente qualquer animação na hora
-            end
-        end
-    end
-
-    -- 3. EXPURGO DE ELEMENTOS VISUAIS EM TEMPO REAL (MATA CLARÕES, PARTÍCULAS E ELEMENTOS DA WORKSPACE)
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-            pcall(function() obj:Destroy() end)
-        elseif obj:IsA("Explosion") then
-            pcall(function() obj:Destroy() end)
-        elseif obj:IsA("Sound") and obj.Name ~= "DeltaCustomHub_Premium" then
-            obj.Volume = 0 ; obj:Stop() -- Silencia qualquer barulho de skill do mapa
-        elseif obj:IsA("PostEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("BlurEffect") or obj:IsA("BloomEffect") then
-            pcall(function() obj:Destroy() end) -- Deleta modificadores globais de cor
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            pcall(function() obj:Destroy() end)
-        elseif obj:IsA("MeshPart") or obj:IsA("SpecialMesh") then
-            -- Se for uma malha gerada por habilidades fora do corpo dos jogadores, torna invisível
-            if not obj:IsDescendantOf(Player.Character) and not game.Players:GetPlayerFromCharacter(obj.Parent) and obj.Name ~= "Terrain" and obj.Name ~= "Baseplate" then
-                if obj:IsA("MeshPart") then 
-                    obj.Transparency = 1 
-                    obj.CanCollide = false
-                elseif obj:IsA("SpecialMesh") and obj.Parent and obj.Parent:IsA("BasePart") then
-                    obj.Parent.Transparency = 1
+                -- Para apenas animações ligadas à ativação de habilidades/ferramentas
+                if track.Animation and (track.Name:lower():find("slash") or track.Name:lower():find("skill") or track.Name:lower():find("attack") or track.Name:lower():find("weapon")) then
+                    track:Stop(0)
                 end
             end
         end
     end
 
-    -- 4. LIMPEZA DO AMBIENTE (EVITA MUDANÇA DE CLIMA OU ESCURIDÃO FORÇADA)
+    -- 3. EXPURGO EXCLUSIVO DE PROJÉTEIS E PARTÍCULAS DE ARMAS NO MAPA
+    for _, obj in pairs(workspace:GetChildren()) do
+        -- Ignora infraestrutura básica do mapa e os personagens dos jogadores
+        if obj.Name ~= "Terrain" and obj.Name ~= "Baseplate" and not obj:IsDescendantOf(Player.Character) and not game.Players:GetPlayerFromCharacter(obj) then
+            
+            -- Se for uma explosão física ou emissor solto no mundo, deleta na hora
+            if obj:IsA("Explosion") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                pcall(function() obj:Destroy() end)
+            
+            -- Se for um modelo de poder/skill arremessado ou invocado:
+            elseif obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("Part") then
+                -- Silencia os sons gerados pelas armas
+                for _, snd in pairs(obj:GetDescendants()) do
+                    if snd:IsA("Sound") then snd.Volume = 0 ; snd:Stop() end
+                end
+                
+                -- Caça e remove os emissores e efeitos visuais internos do projétil
+                for _, fx in pairs(obj:GetDescendants()) do
+                    if fx:IsA("ParticleEmitter") or fx:IsA("Trail") or fx:IsA("Beam") or fx:IsA("Decal") or fx:IsA("Texture") or fx:IsA("SpecialMesh") then
+                        pcall(function() fx:Destroy() end)
+                    end
+                end
+                
+                -- Deixa o objeto físico completamente transparente (para não tampar a sua visão de jogo)
+                if obj:IsA("BasePart") then
+                    obj.Transparency = 1
+                    obj.CanCollide = false
+                end
+            end
+        end
+    end
+
+    -- 4. MANUTENÇÃO AMBIENTAL (Limpa distorções de luz e flash sem alterar a sua UI)
     Lighting.ExposureCompensation = 0
     Lighting.FogEnd = 999999
     Lighting.FogStart = 999999
     Lighting.Brightness = Config.Fullbright and 2 or 1
     Lighting.GlobalShadows = false
-
-    -- 5. BLOQUEIO DE INTERFACES INJETADAS (LIMPA FLASHES DE TELA DA WEAPON NO PLAYERGUI)
-    local playerGui = Player:FindFirstChild("PlayerGui")
-    if playerGui then
-        for _, gui in pairs(playerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Name ~= "DeltaCustomHub_Premium" and gui.Name ~= "Chat" and gui.Name ~= "BubbleChat" then
-                pcall(function() gui:Destroy() end)
-            end
+    
+    for _, postFx in pairs(Lighting:GetChildren()) do
+        if postFx:IsA("ColorCorrectionEffect") or postFx:IsA("BlurEffect") or postFx:IsA("BloomEffect") then
+            pcall(function() postFx:Destroy() end)
         end
     end
 end)
