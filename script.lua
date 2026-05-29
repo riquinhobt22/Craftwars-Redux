@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.4.1 (CORRIGIDA - COMPATÍVEL COM DELTA)
+-- DELTA MOBILE HUB - VERSÃO 4.5 (ANTI-COLOR BUG TOTAL & CAMERA PURGE)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -246,7 +246,7 @@ AddToggle(TabMisc, "Manter Fly após morrer", function(state)
     Config.KeepFlyAfterDeath = state
 end)
 
--- 5. WalkSpeed (ERRO DE SINTAXE REPARADO AQUI)
+-- 5. WalkSpeed
 AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
     Config.WalkSpeedValue = math.clamp(tonumber(text) or 16, 0, 999)
     if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
@@ -400,26 +400,47 @@ task.spawn(function()
     end
 end)
 
--- MOTOR DE SUPRESSÃO VISUAL (ANTI-LAG)
+-- MOTOR REFORMULADO DE ANULAÇÃO VISUAL E DE CÂMERA (SUPRESSÃO TOTAL)
 RunService.Heartbeat:Connect(function()
+    local Camera = workspace.CurrentCamera
+
     if Config.RemoveFX then
+        -- Limpa a Iluminação global
         for _, fx in pairs(Lighting:GetChildren()) do
-            if fx:IsA("ColorCorrectionEffect") or fx:IsA("BlurEffect") or fx:IsA("BloomEffect") or fx:IsA("SunRaysEffect") then
+            if fx:IsA("ColorCorrectionEffect") or fx:IsA("BlurEffect") or fx:IsA("BloomEffect") or fx:IsA("SunRaysEffect") or fx:IsA("Atmosphere") then
                 fx:Destroy()
             end
         end
         Lighting.TintColor = Color3.fromRGB(255, 255, 255)
+        
+        -- EXPURGO DE CÂMERA: Caça e destrói partes invisíveis ou meshes coladas na visão
+        if Camera then
+            for _, obj in pairs(Camera:GetChildren()) do
+                if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Model") then
+                    obj:Destroy() -- Deleta qualquer overlay 3D gerado pelas espadas na tela
+                end
+            end
+        end
     end
 
-    if Config.CleanParticles and Player.Character then
+    if Config.CleanParticles then
+        -- Verifica e limpa os arredores do jogador
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") then
-                if (v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 40) then
+                -- Se a partícula surgir grudada no boneco do player, desativa as emissões imediatamente
+                if Player.Character and v:IsDescendantOf(Player.Character) then
+                    v:Destroy()
+                elseif Player.Character and v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 50 then
                     v:Destroy()
                 end
+            -- Detona qualquer ScreenGui ou tela colorida que apareça no PlayerGui fora do nosso Hub
             elseif v:IsA("ScreenGui") and v.Name ~= "DeltaCustomHub_Premium" and v.Parent == Player:WaitForChild("PlayerGui") then
-                if v:FindFirstChild("Frame") and v.Frame.BackgroundTransparency < 1 and (v.Frame.BackgroundColor3 == Color3.fromRGB(255,255,255) or v.Frame.BackgroundColor3 == Color3.fromRGB(0,0,0)) then
-                    v:Destroy()
+                for _, child in pairs(v:GetDescendants()) do
+                    if child:IsA("Frame") or child:IsA("ImageLabel") then
+                        -- Força transparência total em flashes piscantes brancos, pretos ou roxos
+                        child.BackgroundTransparency = 1
+                        child.Visible = false
+                    end
                 end
             end
         end
