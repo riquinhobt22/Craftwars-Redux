@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.3 (FLY DEFINITIVO + SAFE SKILL SPAMMER)
+-- DELTA MOBILE HUB - VERSÃO 4.4 (SKILL SPAM + ANTI-TELA COLORIDA + NO FX)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -91,7 +91,8 @@ local Config = {
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
-    SkillSpam = false, SpamSpeed = 0.15 -- Valor inicial levemente aumentado para máxima compatibilidade
+    SkillSpam = false, SpamSpeed = 0.15,
+    RemoveFX = false, CleanParticles = false -- NOVAS CONFIGURAÇÕES DE PERFORMANCE
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -265,7 +266,7 @@ AddToggle(TabMisc, "Manter WalkSpeed após morrer", function(state)
 end)
 
 RunService.Heartbeat:Connect(function()
-    if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+    if Config.WalkSpeedActive sweetness and Player.Character and Player.Character:FindFirstChild("Humanoid") then
         Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
     end
 end)
@@ -339,6 +340,16 @@ AddTextBox(TabMisc, "Calibrar Delay (Recomendado: 0.15 a 0.3)", function(text)
     Config.SpamSpeed = math.clamp(tonumber(text) or 0.15, 0.01, 3)
 end)
 
+-- NOVO: Remover Efeitos de Tela (Filtros de Iluminação / Flashes Visuais das Skills)
+AddToggle(TabMisc, "Remover Efeitos Visuais (No FX)", function(state)
+    Config.RemoveFX = state
+end)
+
+-- NOVO: Limpar Partículas Tridimensionais (Deixa apenas a Hitbox dando dano)
+AddToggle(TabMisc, "Remover Partículas (Lag Fix)", function(state)
+    Config.CleanParticles = state
+end)
+
 -- Loop AutoEquip
 task.spawn(function()
     while true do
@@ -363,7 +374,6 @@ task.spawn(function()
             if equippedTool then
                 local targetPos = Player:GetMouse().Hit.Position
                 
-                -- Armazena os remotes para evitar chamadas de processamento pesadas consecutivas
                 local remotes = {}
                 for _, child in pairs(equippedTool:GetDescendants()) do
                     if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
@@ -371,7 +381,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- Executa os disparos intercalados com micro-delays para não corromper o estado interno da arma
                 for _, remote in pairs(remotes) do
                     if not Config.SkillSpam then break end
                     
@@ -385,12 +394,43 @@ task.spawn(function()
                             task.spawn(function() remote:InvokeServer(targetPos) end)
                         end)
                     end
-                    -- Pequena pausa controlada entre remotes para as armas mais sensíveis não travarem
                     task.wait(0.02) 
                 end
             end
         end
         task.wait(Config.SpamSpeed)
+    end
+end)
+
+-- NOVO MOTOR DE SUPRESSÃO VISUAL (ZERA FLASHES E CORES DE SKILLS)
+RunService.Heartbeat:Connect(function()
+    -- 1. Detona efeitos de flashes e trocas de cores inseridas na iluminação do jogo
+    if Config.RemoveFX then
+        for _, fx in pairs(Lighting:GetChildren()) do
+            if fx:IsA("ColorCorrectionEffect") or fx:IsA("BlurEffect") or fx:IsA("BloomEffect") or fx:IsA("SunRaysEffect") then
+                fx:Destroy()
+            end
+        end
+        -- Trava as propriedades de iluminação para o padrão limpo, impedindo scripts locais de piscarem a tela
+        Lighting.TintColor = Color3.fromRGB(255, 255, 255)
+        Lighting.Atmosphere:Destroy() pcall(function() end)
+    end
+
+    -- 2. Limpa elementos físicos na área do boneco e câmera (Fumaças, Explosões, Cortes Visuais)
+    if Config.CleanParticles and Player.Character then
+        for _, v in pairs(workspace:GetDescendants()) do
+            -- Se for partícula ou mesh de skill perto do jogador, remove para manter só a Hitbox limpa
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") then
+                if (v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 40) then
+                    v:Destroy()
+                end
+            elseif v:IsA("ScreenGui") and v.Name ~= "DeltaCustomHub_Premium" and v.Parent == Player:WaitForChild("PlayerGui") then
+                -- Remove FlashGuis criados na tela do jogador por causa do Spam de golpes
+                if v:FindFirstChild("Frame") and v.Frame.BackgroundTransparency < 1 and (v.Frame.BackgroundColor3 == Color3.fromRGB(255,255,255) or v.Frame.BackgroundColor3 == Color3.fromRGB(0,0,0)) then
+                    v:Destroy()
+                end
+            end
+        end
     end
 end)
 
