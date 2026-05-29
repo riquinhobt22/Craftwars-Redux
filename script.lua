@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.4 (SKILL SPAM + ANTI-TELA COLORIDA + NO FX)
+-- DELTA MOBILE HUB - VERSÃO 4.4.1 (CORRIGIDA - COMPATÍVEL COM DELTA)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -92,7 +92,7 @@ local Config = {
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
     SkillSpam = false, SpamSpeed = 0.15,
-    RemoveFX = false, CleanParticles = false -- NOVAS CONFIGURAÇÕES DE PERFORMANCE
+    RemoveFX = false, CleanParticles = false
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -246,7 +246,7 @@ AddToggle(TabMisc, "Manter Fly após morrer", function(state)
     Config.KeepFlyAfterDeath = state
 end)
 
--- 5. WalkSpeed
+-- 5. WalkSpeed (ERRO DE SINTAXE REPARADO AQUI)
 AddTextBox(TabMisc, "Ajustar WalkSpeed (0-999)", function(text)
     Config.WalkSpeedValue = math.clamp(tonumber(text) or 16, 0, 999)
     if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
@@ -266,7 +266,7 @@ AddToggle(TabMisc, "Manter WalkSpeed após morrer", function(state)
 end)
 
 RunService.Heartbeat:Connect(function()
-    if Config.WalkSpeedActive sweetness and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+    if Config.WalkSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
         Player.Character.Humanoid.WalkSpeed = Config.WalkSpeedValue
     end
 end)
@@ -294,209 +294,5 @@ local ListLayout = Instance.new("UIListLayout") ; ListLayout.Parent = ListScroll
 
 local function BuildWeaponMenu()
     for _, child in pairs(ListScroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    
-    local foundAny = false
-    for _, item in pairs(Player.Backpack:GetChildren()) do
-        if item:IsA("Tool") then
-            foundAny = true
-            local WBtn = Instance.new("TextButton")
-            WBtn.Parent = ListScroll
-            WBtn.Size = UDim2.new(1, -4, 0, 25)
-            WBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-            WBtn.Text = item.Name
-            WBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            WBtn.Font = Enum.Font.SourceSansBold
-            WBtn.TextSize = 12
-            local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0, 4) ; c.Parent = WBtn
-            
-            WBtn.MouseButton1Click:Connect(function()
-                Config.SelectedWeapon = item.Name
-                WeaponLabel.Text = "Arma Ativa: " .. item.Name
-                for _, b in pairs(ListScroll:GetChildren()) do if b:IsA("TextButton") then b.BackgroundColor3 = Color3.fromRGB(30, 30, 40) end end
-                WBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-            end)
-        end
-    end
-    if not foundAny then
-        WeaponLabel.Text = "Nenhuma arma na Mochila! Use Refresh."
-    end
-end
+        if child:IsA("TextButton") then child:Destroy()
 
-AddButton(TabMisc, "🔄 Atualizar Lista de Armas", function()
-    BuildWeaponMenu()
-end)
-
-AddToggle(TabMisc, "AutoEquip Weapon", function(state)
-    Config.AutoEquip = state
-end)
-
-AddToggle(TabMisc, "Skill Spammer (Anti-Trava)", function(state)
-    Config.SkillSpam = state
-end)
-
-AddTextBox(TabMisc, "Calibrar Delay (Recomendado: 0.15 a 0.3)", function(text)
-    Config.SpamSpeed = math.clamp(tonumber(text) or 0.15, 0.01, 3)
-end)
-
--- NOVO: Remover Efeitos de Tela (Filtros de Iluminação / Flashes Visuais das Skills)
-AddToggle(TabMisc, "Remover Efeitos Visuais (No FX)", function(state)
-    Config.RemoveFX = state
-end)
-
--- NOVO: Limpar Partículas Tridimensionais (Deixa apenas a Hitbox dando dano)
-AddToggle(TabMisc, "Remover Partículas (Lag Fix)", function(state)
-    Config.CleanParticles = state
-end)
-
--- Loop AutoEquip
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if Config.AutoEquip and Config.SelectedWeapon ~= "" and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-            local currentTool = Player.Character:FindFirstChildOfClass("Tool")
-            if not currentTool or currentTool.Name ~= Config.SelectedWeapon then
-                local tool = Player.Backpack:FindFirstChild(Config.SelectedWeapon)
-                if tool and tool:IsA("Tool") then
-                    Player.Character.Humanoid:EquipTool(tool)
-                end
-            end
-        end
-    end
-end)
-
--- MOTOR ESTABILIZADO ANTI-LOCKUP
-task.spawn(function()
-    while true do
-        if Config.SkillSpam and Player.Character then
-            local equippedTool = Player.Character:FindFirstChildOfClass("Tool")
-            if equippedTool then
-                local targetPos = Player:GetMouse().Hit.Position
-                
-                local remotes = {}
-                for _, child in pairs(equippedTool:GetDescendants()) do
-                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                        table.insert(remotes, child)
-                    end
-                end
-                
-                for _, remote in pairs(remotes) do
-                    if not Config.SkillSpam then break end
-                    
-                    if remote:IsA("RemoteEvent") then
-                        pcall(function()
-                            remote:FireServer()
-                            remote:FireServer(targetPos)
-                        end)
-                    elseif remote:IsA("RemoteFunction") then
-                        pcall(function()
-                            task.spawn(function() remote:InvokeServer(targetPos) end)
-                        end)
-                    end
-                    task.wait(0.02) 
-                end
-            end
-        end
-        task.wait(Config.SpamSpeed)
-    end
-end)
-
--- NOVO MOTOR DE SUPRESSÃO VISUAL (ZERA FLASHES E CORES DE SKILLS)
-RunService.Heartbeat:Connect(function()
-    -- 1. Detona efeitos de flashes e trocas de cores inseridas na iluminação do jogo
-    if Config.RemoveFX then
-        for _, fx in pairs(Lighting:GetChildren()) do
-            if fx:IsA("ColorCorrectionEffect") or fx:IsA("BlurEffect") or fx:IsA("BloomEffect") or fx:IsA("SunRaysEffect") then
-                fx:Destroy()
-            end
-        end
-        -- Trava as propriedades de iluminação para o padrão limpo, impedindo scripts locais de piscarem a tela
-        Lighting.TintColor = Color3.fromRGB(255, 255, 255)
-        Lighting.Atmosphere:Destroy() pcall(function() end)
-    end
-
-    -- 2. Limpa elementos físicos na área do boneco e câmera (Fumaças, Explosões, Cortes Visuais)
-    if Config.CleanParticles and Player.Character then
-        for _, v in pairs(workspace:GetDescendants()) do
-            -- Se for partícula ou mesh de skill perto do jogador, remove para manter só a Hitbox limpa
-            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") then
-                if (v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 40) then
-                    v:Destroy()
-                end
-            elseif v:IsA("ScreenGui") and v.Name ~= "DeltaCustomHub_Premium" and v.Parent == Player:WaitForChild("PlayerGui") then
-                -- Remove FlashGuis criados na tela do jogador por causa do Spam de golpes
-                if v:FindFirstChild("Frame") and v.Frame.BackgroundTransparency < 1 and (v.Frame.BackgroundColor3 == Color3.fromRGB(255,255,255) or v.Frame.BackgroundColor3 == Color3.fromRGB(0,0,0)) then
-                    v:Destroy()
-                end
-            end
-        end
-    end
-end)
-
--- 8. Player ESP (Wallhack)
-local function RefreshESP()
-    espFolder:ClearAllChildren()
-    if not Config.PlayerESP then return end
-    
-    for _, p in pairs(game.Players:GetPlayers()) do
-        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-            local root = p.Character.HumanoidRootPart
-            
-            local box = Instance.new("BoxHandleAdornment")
-            box.Name = p.Name .. "_ESPBox"
-            box.Size = Vector3.new(4, 6, 2)
-            box.Color3 = Color3.fromRGB(255, 0, 50)
-            box.AlwaysOnTop = true
-            box.ZIndex = 5
-            box.Transparency = 0.6
-            box.Adornee = root
-            box.Parent = espFolder
-            
-            local billboard = Instance.new("BillboardGui")
-            billboard.Name = p.Name .. "_ESPText"
-            billboard.Size = UDim2.new(0, 200, 0, 50)
-            billboard.AlwaysOnTop = true
-            billboard.Adornee = root
-            billboard.ExtentsOffset = Vector3.new(0, 4, 0)
-            billboard.Parent = espFolder
-            
-            local label = Instance.new("TextLabel")
-            label.Parent = billboard
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = p.Name
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.TextStrokeTransparency = 0
-            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-            label.Font = Enum.Font.SourceSansBold
-            label.TextSize = 14
-        end
-    end
-end
-
-AddToggle(TabMisc, "Player ESP (Wallhack)", function(state)
-    Config.PlayerESP = state
-    if not state then espFolder:ClearAllChildren() end
-end)
-
-RunService.Heartbeat:Connect(function()
-    if Config.PlayerESP then
-        RefreshESP()
-    end
-end)
-
--- 9. Loop de Persistência Pós-Morte
-Player.CharacterAdded:Connect(function(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if not hum then return end
-    task.wait(0.8)
-    if Config.KeepSpeedAfterDeath and Config.WalkSpeedActive then
-        hum.WalkSpeed = Config.WalkSpeedValue
-    end
-    if Config.KeepFlyAfterDeath and Config.Fly then
-        StartFly()
-    end
-end)
-
-task.defer(BuildWeaponMenu)
