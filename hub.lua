@@ -1,5 +1,5 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 4.6 (MUTE SOUND SPAM & WORLD ANTI-CRASH)
+-- DELTA MOBILE HUB - VERSÃO 4.7 (ANTI-BLINDNESS TOTAL & CAMERA PURGE)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
@@ -42,7 +42,7 @@ end)
 ToggleBtn.InputChanged:Connect(function(input)
     if draggingBtn and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragBtnStart
-        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
+        ToggleBtn.Position = UDim2.new(startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X, startPos.Y.Scale, startBtnPos.Y.Offset + delta.Y)
     end
 end)
 ToggleBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingBtn = false end end)
@@ -93,7 +93,7 @@ local Config = {
     AutoEquip = false, SelectedWeapon = "",
     SkillSpam = false, SpamSpeed = 0.15,
     RemoveFX = false, CleanParticles = false,
-    MuteSounds = false -- NOVA CONFIGURAÇÃO DE ÁUDIO
+    MuteSounds = false
 }
 
 local flyBodyGyro, flyBodyVelocity
@@ -349,7 +349,6 @@ AddToggle(TabMisc, "Remover Partículas (Lag Fix)", function(state)
     Config.CleanParticles = state
 end)
 
--- NOVO: Remover Barulho de Skills sobrepostas (Mute Audio)
 AddToggle(TabMisc, "Silenciar Spam de Som (Mute)", function(state)
     Config.MuteSounds = state
 end)
@@ -406,52 +405,66 @@ task.spawn(function()
     end
 end)
 
--- MOTOR SUPREMO DE HIGIENE VISUAL E AUDITIVA (WORKSPACE CLEANER)
+-- MOTOR ULTRA AGRESSIVO: CAÇADOR DE CÔR SÓLIDA E FLASH (ANTI-BLINDNESS MOTOR)
 RunService.Heartbeat:Connect(function()
     local Camera = workspace.CurrentCamera
 
-    -- 1. Controle de Áudio (Silencia na hora o estouro de som)
     if Config.MuteSounds then
         for _, s in pairs(workspace:GetDescendants()) do
             if s:IsA("Sound") and s.Name ~= "DeltaCustomHub_Premium" then
                 s.Volume = 0
                 s:Stop()
-                s:Destroy() -- Deleta clones de som acumulados pelo spam
+                s:Destroy()
             end
         end
     end
 
     if Config.RemoveFX then
-        -- Desativa efeitos de luz da Workspace que sobrecarregam o processamento 3D
-        for _, lit in pairs(workspace:GetDescendants()) do
-            if lit:IsA("PointLight") or lit:IsA("SpotLight") or lit:IsA("SurfaceLight") then
-                lit.Enabled = false
-                lit:Destroy()
+        -- 1. Detona qualquer pós-processamento oculto na Câmera que cega a tela 3D
+        if Camera then
+            for _, obj in pairs(Camera:GetChildren()) do
+                if obj:IsA("ColorCorrectionEffect") or obj:IsA("BlurEffect") or obj:IsA("BloomEffect") or obj:IsA("SunRaysEffect") or obj:IsA("Atmosphere") then
+                    obj:Destroy()
+                elseif obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                    obj:Destroy()
+                end
             end
         end
-        
-        -- Limpa a Iluminação da Engine
+
+        -- 2. Limpeza Total no Lighting da Engine (Reseta névoas pesadas que simulam tela cheia)
         for _, fx in pairs(Lighting:GetChildren()) do
             if fx:IsA("ColorCorrectionEffect") or fx:IsA("BlurEffect") or fx:IsA("BloomEffect") or fx:IsA("SunRaysEffect") or fx:IsA("Atmosphere") then
                 fx:Destroy()
             end
         end
         Lighting.TintColor = Color3.fromRGB(255, 255, 255)
+        Lighting.FogEnd = 999999 -- Expulsa paredes de fumaça geradas por skills do boss
+        Lighting.FogStart = 999999
+        Lighting.Atmosphere.Density = 0 pcall(function() Lighting.Atmosphere:Destroy() end)
     end
 
     if Config.CleanParticles then
         for _, v in pairs(workspace:GetDescendants()) do
-            -- Anula os modelos de ataque 3D (Meshes transparentes coloridas de corte de espada)
+            -- Destrói partículas e vigas de luz pesadas perto do jogador
             if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Decal") then
-                if Player.Character and v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 60 then
+                if Player.Character and v.Parent:IsA("BasePart") and (v.Parent.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 70 then
                     v:Destroy()
                 end
-            -- Se for uma Mesh avulsa criada pelo ataque na sua frente que cega o mapa, força ela sumir
-            elseif v:IsA("MeshPart") or v:IsA("SpecialMesh") then
-                if v.Parent and v.Parent.Name ~= Player.Name and not v:IsDescendantOf(Player.Character) then
-                    if Player.Character and (v.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 40 then
+            -- Força sumiço e deleta MeshParts coloridas jogadas na sua área que geram a tela sólida
+            elseif v:IsA("MeshPart") or v:IsA("SpecialMesh") or v:IsA("Part") then
+                if v.Parent and v.Parent.Name ~= Player.Name and not v:IsDescendantOf(Player.Character) and v.Name ~= "Terrain" then
+                    -- Se a peça for gerada muito colada ao boneco (efeito de domo/explosão visual), ela é pulverizada
+                    if Player.Character and v:IsA("MeshPart") and (v.Position - Player.Character.HumanoidRootPart.Position).Magnitude < 45 then
                         v.Transparency = 1
                         v:Destroy()
+                    end
+                end
+            -- Remove e oculta qualquer tela piscante (Frame invisível em pastas alternativas de UI)
+            elseif v:IsA("ScreenGui") and v.Name ~= "DeltaCustomHub_Premium" and v.Parent == Player:WaitForChild("PlayerGui") then
+                for _, child in pairs(v:GetDescendants()) do
+                    if child:IsA("Frame") or child:IsA("ImageLabel") then
+                        child.BackgroundTransparency = 1
+                        child.Visible = false
                     end
                 end
             end
