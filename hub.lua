@@ -1,10 +1,9 @@
 -- ====================================================================
--- DELTA MOBILE HUB - VERSÃO 6.1 (WEAPON BLACKOUT - JOGABILIDADE LIVRE)
+-- DELTA MOBILE HUB - VERSÃO 6.2 (ANTI-COLOR FLOOD & WEAPON BLACKOUT)
 -- ====================================================================
 local Player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 
 -- Evita duplicar a interface na tela
@@ -87,7 +86,7 @@ local ContentContainer = Instance.new("Frame") ; ContentContainer.Parent = MainF
 
 -- Tabelas de Controle Globais
 local Config = {
-    WeaponBlackout = false, Fullbright = false, PlayerESP = false,
+    WeaponBlackout = false, Fullbright = true, PlayerESP = false,
     Fly = false, FlySpeed = 50, KeepFlyAfterDeath = false,
     WalkSpeedActive = false, WalkSpeedValue = 16, KeepSpeedAfterDeath = false,
     AutoEquip = false, SelectedWeapon = "",
@@ -115,16 +114,22 @@ local function CreateTab(name)
     return TabFrame
 end
 
-local function AddToggle(tab, text, callback)
-    local Toggle = Instance.new("TextButton") ; Toggle.Parent = tab ; Toggle.Size = UDim2.new(1, -6, 0, 32) ; Toggle.BackgroundColor3 = Color3.fromRGB(24, 24, 32) ; Toggle.Text = "  " .. text .. " [OFF]" ; Toggle.Font = Enum.Font.SourceSansBold ; Toggle.TextColor3 = Color3.fromRGB(230, 75, 75) ; Toggle.TextSize = 12 ; Toggle.TextXAlignment = Enum.TextXAlignment.Left
+local function AddToggle(tab, text, callback, defaultState)
+    local Toggle = Instance.new("TextButton") ; Toggle.Parent = tab ; Toggle.Size = UDim2.new(1, -6, 0, 32) ; Toggle.BackgroundColor3 = Color3.fromRGB(24, 24, 32) ; Toggle.Font = Enum.Font.SourceSansBold ; Toggle.TextSize = 12 ; Toggle.TextXAlignment = Enum.TextXAlignment.Left
     local ToggleCorner = Instance.new("UICorner") ; ToggleCorner.CornerRadius = UDim.new(0, 6) ; ToggleCorner.Parent = Toggle
-    local state = false
-    Toggle.MouseButton1Click:Connect(function()
-        state = not state
+    local state = defaultState or false
+    
+    local function updateVisual()
         Toggle.Text = state and "  " .. text .. " [ON]" or "  " .. text .. " [OFF]"
         Toggle.TextColor3 = state and Color3.fromRGB(75, 230, 130) or Color3.fromRGB(230, 75, 75)
+    end
+    
+    Toggle.MouseButton1Click:Connect(function()
+        state = not state
+        updateVisual()
         pcall(callback, state)
     end)
+    updateVisual()
     return Toggle
 end
 
@@ -147,7 +152,7 @@ end
 -- ====================================================================
 local TabMisc = CreateTab("Main Menu")
 
--- NOVO BOTÃO EQUILIBRADO: APENAS OCULTA SKILLS E ANIMAÇÕES DE ARMAS
+-- FUNÇÃO MESTRE: ANTIDOTO VISUAL PARA SKILLS DE WEAPONS
 AddToggle(TabMisc, "Ocultar Skills Globais (Weapon Blackout)", function(state)
     Config.WeaponBlackout = state
 end)
@@ -220,15 +225,10 @@ AddToggle(TabMisc, "Ativar WalkSpeed", function(state)
 end)
 AddToggle(TabMisc, "Manter WalkSpeed após morrer", function(state) Config.KeepSpeedAfterDeath = state end)
 
--- FullBright
-AddToggle(TabMisc, "FullBright (Iluminação Estável)", function(state)
+-- FullBright Integrado
+AddToggle(TabMisc, "FullBright (Visão Estável)", function(state)
     Config.Fullbright = state
-    if state then
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255) ; Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255) ; Lighting.Brightness = 2
-    else
-        Lighting.Ambient = Color3.fromRGB(130, 130, 130) ; Lighting.OutdoorAmbient = Color3.fromRGB(130, 130, 130) ; Lighting.Brightness = 1
-    end
-end)
+end, true)
 
 -- Configurações de Armas e Spam
 local WeaponLabel = Instance.new("TextLabel") ; WeaponLabel.Parent = TabMisc ; WeaponLabel.Size = UDim2.new(1, -6, 0, 20) ; WeaponLabel.BackgroundTransparency = 1 ; WeaponLabel.Text = "Arma Ativa: Nenhuma" ; WeaponLabel.Font = Enum.Font.SourceSansBold ; WeaponLabel.TextColor3 = Color3.fromRGB(0, 140, 255) ; WeaponLabel.TextSize = 13
@@ -301,77 +301,72 @@ task.spawn(function()
 end)
 
 -- ====================================================================
--- INTERCEPTADOR CIRÚRGICO DE WEAPONS (FOCADO APENAS EM PODERES EXTERNOS)
+-- ESTABILIZADOR GRÁFICO ANTIDOTO (IGNORA REQUISIÇÕES DA SKILL DA ARMA)
 -- ====================================================================
 RunService.RenderStepped:Connect(function()
-    if not Config.WeaponBlackout then return end
-    
     local Camera = workspace.CurrentCamera
     
-    -- 1. PROTEÇÃO DE CÂMERA (Impede a arma de mexer ou afastar a sua visão)
-    if Camera then
-        Camera.CameraType = Enum.CameraType.Custom 
-        Camera.FieldOfView = 70 
-    end
-    
-    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        Player.Character.Humanoid.CameraOffset = Vector3.new(0,0,0) -- Zera tremores de tela das skills
+    -- Se o blackout de armas estiver ativo, nós forçamos o bloqueio de iluminação
+    if Config.WeaponBlackout then
+        -- 1. BLOQUEIO DA LUZ ROXA/PRETA (Neutraliza a skill da Entropy Slasher)
+        if Config.Fullbright then
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 2
+        else
+            Lighting.Ambient = Color3.fromRGB(140, 140, 140)
+            Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 140)
+            Lighting.Brightness = 1
+        end
         
-        -- 2. BLOQUEIO DE ANIMAÇÕES DE ATAQUE DA FERRAMENTA EQUIPADA
-        local Tool = Player.Character:FindFirstChildOfClass("Tool")
-        local Animator = Player.Character.Humanoid:FindFirstChildOfClass("Animator")
-        if Tool and Animator then
-            for _, track in pairs(Animator:GetPlayingAnimationTracks()) do
-                -- Para apenas animações ligadas à ativação de habilidades/ferramentas
-                if track.Animation and (track.Name:lower():find("slash") or track.Name:lower():find("skill") or track.Name:lower():find("attack") or track.Name:lower():find("weapon")) then
-                    track:Stop(0)
-                end
+        Lighting.ExposureCompensation = 0
+        Lighting.FogEnd = 999999
+        Lighting.FogStart = 999999
+        Lighting.GlobalShadows = false
+
+        -- Força modificadores de tela (Filtros de Cor/Bugs Visuais) a ficarem desativados
+        for _, postFx in pairs(Lighting:GetChildren()) do
+            if postFx:IsA("ColorCorrectionEffect") then
+                postFx.TintColor = Color3.fromRGB(255, 255, 255) -- Restaura o tom branco neutro
+                postFx.Saturation = 0
+                postFx.Contrast = 0
+            elseif postFx:IsA("BlurEffect") or postFx:IsA("BloomEffect") then
+                pcall(function() postFx:Destroy() end)
             end
         end
-    end
+        
+        -- Remove Skyboxes personalizadas que tentam cegar a tela
+        for _, sky in pairs(Lighting:GetChildren()) do
+            if sky:IsA("Sky") then pcall(function() sky:Destroy() end) end
+        end
 
-    -- 3. EXPURGO EXCLUSIVO DE PROJÉTEIS E PARTÍCULAS DE ARMAS NO MAPA
-    for _, obj in pairs(workspace:GetChildren()) do
-        -- Ignora infraestrutura básica do mapa e os personagens dos jogadores
-        if obj.Name ~= "Terrain" and obj.Name ~= "Baseplate" and not obj:IsDescendantOf(Player.Character) and not game.Players:GetPlayerFromCharacter(obj) then
-            
-            -- Se for uma explosão física ou emissor solto no mundo, deleta na hora
-            if obj:IsA("Explosion") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
-                pcall(function() obj:Destroy() end)
-            
-            -- Se for um modelo de poder/skill arremessado ou invocado:
-            elseif obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("Part") then
-                -- Silencia os sons gerados pelas armas
-                for _, snd in pairs(obj:GetDescendants()) do
-                    if snd:IsA("Sound") then snd.Volume = 0 ; snd:Stop() end
-                end
-                
-                -- Caça e remove os emissores e efeitos visuais internos do projétil
-                for _, fx in pairs(obj:GetDescendants()) do
-                    if fx:IsA("ParticleEmitter") or fx:IsA("Trail") or fx:IsA("Beam") or fx:IsA("Decal") or fx:IsA("Texture") or fx:IsA("SpecialMesh") then
-                        pcall(function() fx:Destroy() end)
+        -- 2. TRAVA DE CÂMERA (Impede chacoalhões e afastamentos sem quebrar o boneco)
+        if Camera then
+            Camera.CameraType = Enum.CameraType.Custom 
+            Camera.FieldOfView = 70 
+        end
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.CameraOffset = Vector3.new(0,0,0)
+        end
+
+        -- 3. REMOVE PARTICULAS E SONS GERADOS PELAS SKILLS FORA DO SEU PLAYER
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj.Name ~= "Terrain" and obj.Name ~= "Baseplate" and not obj:IsDescendantOf(Player.Character) and not game.Players:GetPlayerFromCharacter(obj) then
+                if obj:IsA("Explosion") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                    pcall(function() obj:Destroy() end)
+                elseif obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("Part") then
+                    for _, sub in pairs(obj:GetDescendants()) do
+                        if sub:IsA("Sound") then sub.Volume = 0 ; sub:Stop()
+                        elseif sub:IsA("ParticleEmitter") or sub:IsA("Trail") or sub:IsA("Beam") or sub:IsA("Decal") or sub:IsA("Texture") then
+                            pcall(function() sub:Destroy() end)
+                        end
+                    end
+                    if obj:IsA("BasePart") and obj.Name:lower():find("skill") or obj.Name:lower():find("projectile") then
+                        obj.Transparency = 1
+                        obj.CanCollide = false
                     end
                 end
-                
-                -- Deixa o objeto físico completamente transparente (para não tampar a sua visão de jogo)
-                if obj:IsA("BasePart") then
-                    obj.Transparency = 1
-                    obj.CanCollide = false
-                end
             end
-        end
-    end
-
-    -- 4. MANUTENÇÃO AMBIENTAL (Limpa distorções de luz e flash sem alterar a sua UI)
-    Lighting.ExposureCompensation = 0
-    Lighting.FogEnd = 999999
-    Lighting.FogStart = 999999
-    Lighting.Brightness = Config.Fullbright and 2 or 1
-    Lighting.GlobalShadows = false
-    
-    for _, postFx in pairs(Lighting:GetChildren()) do
-        if postFx:IsA("ColorCorrectionEffect") or postFx:IsA("BlurEffect") or postFx:IsA("BloomEffect") then
-            pcall(function() postFx:Destroy() end)
         end
     end
 end)
